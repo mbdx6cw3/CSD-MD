@@ -1,0 +1,7 @@
+name: Small Molecule Demo Simulation (Aspirin)
+system_type: small_molecule
+identifier: n/a
+force_field: amber
+timestep: 1.0 
+temperature: 300
+ensemble: NVT
