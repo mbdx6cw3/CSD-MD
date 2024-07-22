@@ -13,7 +13,7 @@ class MolecularDynamics:
         """
 
         # setup force field
-        if md_params.get("force_field") == "amber":
+        if md_params.get("force field") == "amber":
             solute_FF = "amber14-all.xml" # (PairNet coming soon)
             solvent_FF = "amber14/tip3pfb.xml"
         forces = ForceField(solute_FF, solvent_FF)
@@ -21,8 +21,8 @@ class MolecularDynamics:
             nonbondedCutoff=1*nanometer, constraints=HBonds)
 
         # setup integrator
-        temp = md_params.get("temperature")*kelvin
-        dt = md_params.get("timestep")*femtoseconds
+        temp = md_params.get("temperature (K)")*kelvin
+        dt = md_params.get("timestep (fs)")*femtoseconds
         temp_coupling = 1/picosecond
         if md_params.get("ensemble") == "NVT":
             integrator = LangevinMiddleIntegrator(temp, temp_coupling, dt)
