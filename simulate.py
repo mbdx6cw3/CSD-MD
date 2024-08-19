@@ -1,12 +1,10 @@
 class MolecularDynamics:
 
-    def standard(self, simulation, params):
+    def standard(self, simulation):
         """
 
         :param simulation:
         :return:
         """
-        n_steps = int(params.get("simulation time (ns)")*1e6\
-                  / params.get("timestep (fs)"))
-        simulation.step(n_steps)
+        simulation.step(10000)
 

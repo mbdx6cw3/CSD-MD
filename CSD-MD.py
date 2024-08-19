@@ -13,15 +13,14 @@ def main():
     print(md_params.get("name"))
     print()
 
-    '''
-    identifier = md_params.get("identifier")
-    if identifier != "n/a":
+    if md_params.get("identifier") != "n/a":
         print("Retrieving entry from CSD...")
         entry = get_structure.CSDDatabase()
         if md_params.get("system type") == "small_molecule":
-            entry.smallmolecule(identifier)
-    '''
-
+            input_structure = entry.smallmolecule(md_params.get("identifier"))
+        elif md_params.get("system type") == "protein":
+            input_structure = entry.protein(md_params.get("identifier"))
+ 
     print("Reading structure from PDB file...")
     input_structure = get_structure.pdb()
 
@@ -33,8 +32,8 @@ def main():
     print("Minimising initial structure...")
     simulation_setup.minimizeEnergy()
 
-    print("Performing a", md_params.get("simulation time (ns)"), "ns MD simulation...")
-    simulate.MolecularDynamics().standard(simulation_setup, md_params)
+    print("Performing MD simulation...")
+    simulate.MolecularDynamics().standard(simulation_setup)
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
