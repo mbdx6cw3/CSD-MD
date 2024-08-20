@@ -8,7 +8,7 @@ def csdMD():
     '''
     # parse input arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("--md_params")
+    parser.add_argument("--md_params", default="input.yaml")
     args = parser.parse_args()
     input_file = args.md_params
     isExist = os.path.exists(input_file)

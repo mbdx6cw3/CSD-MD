@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import read_inputs, get_structure, setup, simulate
+import warnings, os
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def main():
     """
@@ -10,16 +12,16 @@ def main():
     print("Reading input parameters...")
     md_params = read_inputs.csdMD()
 
-    print(md_params.get("name"))
+    print("Simulation:", md_params.get("name"))
     print()
 
     if md_params.get("identifier") != "n/a":
         print("Retrieving entry from CSD...")
         entry = get_structure.CSDDatabase()
         if md_params.get("system type") == "small_molecule":
-            input_structure = entry.smallmolecule(md_params.get("identifier"))
+            entry.smallmolecule(md_params.get("identifier"))
         elif md_params.get("system type") == "protein":
-            input_structure = entry.protein(md_params.get("identifier"))
+            entry.protein(md_params.get("identifier"))
  
     print("Reading structure from PDB file...")
     input_structure = get_structure.pdb()
