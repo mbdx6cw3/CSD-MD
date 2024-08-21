@@ -21,15 +21,25 @@ class MolecularDynamics:
             solvent_FF = "amber14/tip3p.xml"
         forces = ForceField(solute_FF, solvent_FF)
 
-        # TODO: if non-standard molecule generate a force field template
+        # non-standard residue needs to generate a force field template
+        # charges assigned using am1-bcc
         if md_params.get("system type") == "small_molecule":
             molecule = Molecule.from_file("input.sdf")
+            #molecule.assign_partial_charges(partial_charge_method="am1bcc")
             gaff = GAFFTemplateGenerator(molecules=molecule, forcefield="gaff-2.11")
             forces.registerTemplateGenerator(gaff.generator)
 
         system = forces.createSystem(pdb.topology, nonbondedMethod=PME, 
             nonbondedCutoff=1*nanometer, constraints=HBonds)
-        system.setDefaultPeriodicBoxVectors(Vec3(3.0, 0, 0), Vec3(0, 3.0, 0), Vec3(0, 0, 3.0))
+
+        if md_params.get("system type") == "small_molecule":
+            nonbonded = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
+            charges = []
+            for i in range(system.getNumParticles()):
+                charge, sigma, epsilon = nonbonded.getParticleParameters(i)
+                print(charge, sigma, epsilon)
+            system.setDefaultPeriodicBoxVectors\
+                (Vec3(3.0, 0, 0), Vec3(0, 3.0, 0), Vec3(0, 0, 3.0))
 
         # setup integrator
         temp = md_params.get("temperature (K)")*kelvin

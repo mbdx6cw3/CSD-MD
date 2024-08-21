@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import read_inputs, get_structure, setup, simulate
-import warnings, os
+
+# TODO: make this apply to all modules
+import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def main():
