@@ -6,5 +6,5 @@ class MolecularDynamics:
         :param simulation:
         :return:
         """
-        simulation.step(10000)
+        simulation.step(100)
 

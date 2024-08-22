@@ -12,9 +12,9 @@ wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforg
 bash Mambaforge-Linux-x86_64.sh ---> yes to initialise at the end (add executables to the path)
 
 Example:
-mamba create -n ccdc python=3.7.12
+mamba create -n ccdc python=3.7.12 (3.9???)
 mamba activate ccdc
-mamba install openmm openmmforcefields pyyaml
+mamba install openmm openmmforcefields pyyaml (openeye - need licence?)
 python -m pip install --extra-index-url https://pip.ccdc.cam.ac.uk/ csd-python-api
 
 Running MD simulations:
@@ -22,9 +22,8 @@ Running MD simulations:
 A single .yaml input file is required. This contains all information
 required to retrieve a structure from CSD and run an MD simulation.
 
-For a small molecule simulation openmmforcefields is used to generate a
-non-standard residue template. Charges assigned using AM1-BCC from Antechamber /
-Ambertools.
+For a ligand simulation openmmforcefields is used to generate a
+non-standard residue template with AM1-BCC charges assigned.
 
 Input options:
 ...to follow

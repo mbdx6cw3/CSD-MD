@@ -6,32 +6,32 @@
 #sys.path.insert(1, "/mnt/iusers01/rb01/mbdx6cw3/.local/lib/python3.7/site-packages")
 #sys.path.insert(1, "/mnt/iusers01/rb01/mbdx6cw3/mambaforge/envs/ccdc_new/lib/python3.7/site-packages")
 
-from openmm.app import *
+from openmm.app import PDBFile
+from ccdc.conformer import ConformerGenerator
+from ccdc.io import MoleculeWriter
+from ccdc.io import EntryReader
 
 class CSDDatabase:
 
-    def smallmolecule(self, identifier):
+    def ligand(self, identifier):
         """
 
         :return:
         """
-        from ccdc.conformer import ConformerGenerator
-        from ccdc.io import MoleculeWriter
-        from ccdc.io import EntryReader
 
         csd_reader = EntryReader("CSD")
         entry = csd_reader.entry(identifier)
-        molecule = entry.molecule
+        ligand = entry.molecule
         conformer_generator = ConformerGenerator()
-        conformers = conformer_generator.generate(molecule)
-        
+        conformers = conformer_generator.generate(ligand)
+
         with MoleculeWriter("input.pdb") as mol_writer:
             mol_writer.write(conformers[0].molecule)
 
         with MoleculeWriter("input.sdf") as mol_writer:
             mol_writer.write(conformers[0].molecule)
 
-        return None
+        return
 
     
     def protein(self, identifier):

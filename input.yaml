@@ -1,6 +1,7 @@
-name: Demo simulation
-system type: small_molecule
+name: Demonstration
+system type: ligand
 identifier: ACSALA
+solvated: yes
 simulation type: standard
 force field: amber
 simulation time (ns): 0.001
