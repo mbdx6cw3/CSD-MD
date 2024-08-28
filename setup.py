@@ -3,6 +3,10 @@ from openmm import LangevinMiddleIntegrator, NonbondedForce, CustomExternalForce
 from openmm import unit
 from openmmforcefields.generators import GAFFTemplateGenerator
 from openff.toolkit.topology import Molecule
+from network import Network
+from keras.models import Model, load_model
+import os
+import tensorflow as tf
 
 class MolecularDynamics:
 
@@ -42,7 +46,7 @@ class MolecularDynamics:
                 print("Charge assignment failed...")
                 pass
 
-        # if using pair-net set all intramolecular ligand interactions to zero
+        # if using pair-net load a model and set all intramolecular ligand interactions to zero
         if md_params.get("pair-net"):
             nb = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
             for i in range(ligand.n_atoms):
@@ -57,6 +61,8 @@ class MolecularDynamics:
             ml_force.addPerParticleParameter("fz")
             for j in range(ligand.n_atoms):
                 ml_force.addParticle(j, (0, 0, 0))
+        else:
+            ml_force = None
 
         # setup integrator
         temp = md_params.get("temperature (K)")*unit.kelvin
@@ -73,5 +79,5 @@ class MolecularDynamics:
         simulation.reporters.append(app.StateDataReporter(stdout, 10, step=True,
             potentialEnergy=True, temperature=True))
 
-        return system, simulation
+        return simulation, ml_force
 

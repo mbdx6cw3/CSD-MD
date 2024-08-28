@@ -26,19 +26,19 @@ def main():
             entry.protein(md_params.get("identifier"))
 
     # TODO: protein-ligand docking.
-    # TODO: load PairNet model, map atoms
+    # TODO:  atoms
 
     print("Reading structure from PDB file...")
     input_structure = get_structure.pdb()
 
-    print("Initialising MD simulation...")
-    system, simulation = setup.MolecularDynamics().openMM(input_structure, md_params)
+    print("Setting up MD simulation...")
+    simulation, force = setup.MolecularDynamics().openMM(input_structure, md_params)
 
     print("Minimising initial structure...")
     simulation.minimizeEnergy()
 
     print("Performing MD simulation...")
-    simulate.MolecularDynamics().standard(md_params, system, simulation)
+    simulate.MolecularDynamics().standard(md_params, simulation, force)
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
