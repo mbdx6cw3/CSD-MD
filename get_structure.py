@@ -41,13 +41,3 @@ class CSDDatabase:
         """
         return None
 
-
-def pdb():
-    """
-
-    :return:
-    """
-    pdb = PDBFile('input.pdb')
-    return pdb
-
-

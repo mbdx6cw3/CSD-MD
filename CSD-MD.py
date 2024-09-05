@@ -26,13 +26,9 @@ def main():
             entry.protein(md_params.get("identifier"))
 
     # TODO: protein-ligand docking.
-    # TODO:  atoms
-
-    print("Reading structure from PDB file...")
-    input_structure = get_structure.pdb()
 
     print("Setting up MD simulation...")
-    simulation, force = setup.MolecularDynamics().openMM(input_structure, md_params)
+    simulation, force = setup.MolecularDynamics().openMM(md_params)
 
     print("Minimising initial structure...")
     simulation.minimizeEnergy()

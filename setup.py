@@ -6,7 +6,7 @@ from openff.toolkit.topology import Molecule
 
 class MolecularDynamics:
 
-    def openMM(self, pdb, md_params):
+    def openMM(self, md_params):
         """Set up an MD simulation.
 
         :param pdb: The input coordinates.
@@ -16,6 +16,9 @@ class MolecularDynamics:
 
         # setup force field
         forcefield = app.ForceField("amber14-all.xml", "amber14/tip3p.xml")
+
+        print("Reading structure from PDB file...")
+        pdb = app.PDBFile('input.pdb')
 
         # non-standard residue needs to generate a force field template
         if md_params.get("system type") == "ligand":
