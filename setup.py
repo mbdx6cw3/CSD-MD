@@ -3,10 +3,6 @@ from openmm import LangevinMiddleIntegrator, NonbondedForce, CustomExternalForce
 from openmm import unit
 from openmmforcefields.generators import GAFFTemplateGenerator
 from openff.toolkit.topology import Molecule
-from network import Network
-from keras.models import Model, load_model
-import os
-import tensorflow as tf
 
 class MolecularDynamics:
 
@@ -25,14 +21,14 @@ class MolecularDynamics:
         if md_params.get("system type") == "ligand":
             ligand = Molecule.from_file("input.sdf")
             topology = ligand.to_topology().to_openmm()
-            topology.setUnitCellDimensions([3.0]*3)
             gaff = GAFFTemplateGenerator(molecules=ligand)
             forcefield.registerTemplateGenerator(gaff.generator)
+            topology.setUnitCellDimensions([3.0]*3)
         elif md_params.get("system type") == "protein":
             topology = pdb.topology
 
         modeller = app.Modeller(topology, pdb.positions)
-        cutoff = 1.0 * unit.nanometer
+        cutoff = 1.0*unit.nanometer
 
         # charges assigned using am1bcc - bug in OpenFF Toolkit means this doesn't always work.
         while True:
@@ -76,7 +72,7 @@ class MolecularDynamics:
         simulation.context.setPositions(modeller.positions)
         simulation.context.setVelocitiesToTemperature(temp)
         simulation.reporters.append(app.PDBReporter("output.pdb", 10))
-        simulation.reporters.append(app.StateDataReporter(stdout, 10, step=True,
+        simulation.reporters.append(app.StateDataReporter(stdout, 100, step=True,
             potentialEnergy=True, temperature=True))
 
         return simulation, ml_force
