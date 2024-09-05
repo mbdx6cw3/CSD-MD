@@ -4,8 +4,6 @@
 This module is for running a NN with a training set of data.
 '''
 from __future__ import print_function  # for tf printing
-import numpy as np
-from tensorflow import keras
 from tensorflow.keras.layers import Input, Dense, Layer
 from tensorflow.keras.models import Model
 import tensorflow as tf
@@ -38,7 +36,6 @@ class CoordsToNRF(Layer):
         self.max_NRF = max_NRF
         self._NC2 = _NC2
         self.n_atoms = n_atoms
-        # TODO: this can be removed
         self.au2kcalmola = 627.5095 * 0.529177
 
     def compute_output_shape(self, input_shape):
@@ -60,12 +57,12 @@ class CoordsToNRF(Layer):
                                shape=(tf.shape(tri)[0], -1))  # reshape to _NC2
         r = diff_flat ** 0.5
         recip_r2 = 1 / r ** 2
-        # TODO: this can be removed and simplified - make consistent with other
         _NRF = (((atom_nc * self.au2kcalmola) * recip_r2) /
                 self.max_NRF)  # scaled
         _NRF = tf.reshape(_NRF,
                           shape=(
                           tf.shape(coords)[0], self._NC2))  # reshape to _NC2
+        tf.print(_NRF)
         return _NRF
 
 
@@ -96,13 +93,13 @@ class Eij(Layer):
         return (batch_size, self._NC2)
 
     def call(self, decomp_scaled):
+        tf.print(decomp_scaled)
         decomp_scaled = tf.reshape(decomp_scaled,
                                    shape=(tf.shape(decomp_scaled)[0], -1))
         decomp = (decomp_scaled - 0.5) * (2 * self.max_Eij)
         decomp = tf.reshape(decomp,
                             shape=(tf.shape(decomp_scaled)[0],
                                    self._NC2))  # reshape to _NC2
-
         return decomp
 
 
@@ -177,6 +174,8 @@ class Network:
         if ann_params["n_nodes"] == "auto":
             n_nodes = [n_atoms * 30] * n_layers
 
+        print(ann_params)
+
         # set prescaling factors
         max_NRF = tf.constant(prescale[4], dtype=tf.float32)
         max_matFE = tf.constant(prescale[5], dtype=tf.float32)
@@ -185,6 +184,7 @@ class Network:
         coords_layer = Input(shape=(n_atoms, 3), name='coords_layer')
         nuclear_charge_layer = Input(shape=(n_atoms),
                                      name='nuclear_charge_layer')
+
         nc_pairs_layer = NuclearChargePairs(n_pairs, n_atoms)(
             nuclear_charge_layer)
 

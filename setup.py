@@ -74,8 +74,8 @@ class MolecularDynamics:
         simulation = app.Simulation(modeller.topology, system, integrator)
         simulation.context.setPositions(modeller.positions)
         simulation.context.setVelocitiesToTemperature(temp)
-        simulation.reporters.append(app.PDBReporter("output.pdb", 10))
-        simulation.reporters.append(app.StateDataReporter(stdout, 100, step=True,
+        simulation.reporters.append(app.PDBReporter("output.pdb", 1))
+        simulation.reporters.append(app.StateDataReporter(stdout, 1, step=True,
             potentialEnergy=True, temperature=True))
 
         return simulation, ml_force

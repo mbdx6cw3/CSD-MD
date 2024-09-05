@@ -11,11 +11,16 @@ Mamba installation instructions: https://github.com/conda-forge/miniforge
 wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh
 bash Mambaforge-Linux-x86_64.sh ---> yes to initialise at the end (add executables to the path)
 
-Example:
-mamba create -n ccdc python=3.7.12 (3.9???)
+Example environment setup:
+mamba create -n ccdc python=3.9
 mamba activate ccdc
-mamba install openmm openmmforcefields pyyaml (openeye - need licence?)
+mamba install openmm openmmforcefields pyyaml tensorflow=2.12.0 (openeye? - need a licence)
 python -m pip install --extra-index-url https://pip.ccdc.cam.ac.uk/ csd-python-api
+
+Notes:
+ - Problems finding the CSD Database so had to follow instructions here to set
+ up mamba and save environment variables in ./etc/conda/activate.d/env_vars.sh:
+ https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#set-env-vars
 
 Running MD simulations:
 
@@ -40,8 +45,5 @@ Simulation type:
 Example usage:
 "python CSD-MD.py --md_params input.yaml > md.log"
 
-Notes:
- - Problems finding the CSD Database so had to follow instructions here to set
- up mamba and save environment variables in ./etc/conda/activate.d/env_vars.sh:
- https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#set-env-vars
+
 

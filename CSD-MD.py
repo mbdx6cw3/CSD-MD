@@ -17,13 +17,13 @@ def main():
     print("Simulation:", md_params.get("name"))
     print()
 
-    if md_params.get("identifier") != "n/a":
+    if md_params.get("CSD identifier") != "n/a":
         print("Retrieving entry from CSD...")
         entry = get_structure.CSDDatabase()
         if md_params.get("system type") == "ligand":
-            entry.ligand(md_params.get("identifier"))
+            entry.ligand(md_params.get("CSD identifier"))
         elif md_params.get("system type") == "protein":
-            entry.protein(md_params.get("identifier"))
+            entry.protein(md_params.get("CSD identifier"))
 
     # TODO: protein-ligand docking.
 

@@ -20,4 +20,3 @@ def csdMD():
 
     return md_params
 
-
