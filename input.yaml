@@ -1,18 +1,10 @@
 name: Demonstration
 system type: ligand
-identifier: ACSALA
-solvated: yes
+CSD identifier: ACSALA
+solvate system: yes
 simulation type: standard
-force field: amber
-simulation time (ns): 0.001
+pair-net: no
+simulation time (ns): 0.01
 timestep (fs): 1.0
 temperature (K): 300.0
 ensemble: NVT
-
-
-
-
-
-
-
-

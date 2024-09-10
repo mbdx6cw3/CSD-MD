@@ -14,7 +14,7 @@ bash Mambaforge-Linux-x86_64.sh ---> yes to initialise at the end (add executabl
 Example environment setup:
 mamba create -n ccdc python=3.9
 mamba activate ccdc
-mamba install openmm openmmforcefields pyyaml tensorflow=2.12.0 (openeye? - need a licence)
+mamba install openmm openmmforcefields pyyaml tensorflow=2.12.0
 python -m pip install --extra-index-url https://pip.ccdc.cam.ac.uk/ csd-python-api
 
 Notes:
