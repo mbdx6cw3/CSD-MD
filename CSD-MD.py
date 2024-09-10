@@ -25,7 +25,7 @@ def main():
         elif md_params.get("system type") == "protein":
             entry.protein(md_params.get("CSD identifier"))
 
-    # TODO: protein-ligand docking.
+    # TODO: protein-ligand docking option here.
 
     print("Setting up MD simulation...")
     simulation, force = setup.MolecularDynamics().openMM(md_params)

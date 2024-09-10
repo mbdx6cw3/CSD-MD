@@ -7,6 +7,7 @@ from __future__ import print_function  # for tf printing
 from tensorflow.keras.layers import Input, Dense, Layer
 from tensorflow.keras.models import Model
 import tensorflow as tf
+import numpy as np
 
 
 class NuclearChargePairs(Layer):
@@ -152,7 +153,7 @@ class Force(Layer):
         return gradients[0] * -1
 
 
-class Network:
+class Network(object):
     '''
     '''
 
@@ -228,7 +229,7 @@ class Network:
 
         return model
 
-    def read_params(self, input_file):
+    def read_params(input_file):
         try:
             param_file = open(input_file, "r")
         except FileNotFoundError:
