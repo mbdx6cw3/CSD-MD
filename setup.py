@@ -1,6 +1,6 @@
 from sys import stdout
 from openmm import LangevinMiddleIntegrator, NonbondedForce, CustomExternalForce, app
-from openmm import unit, vec3
+from openmm import unit
 from openmmforcefields.generators import GAFFTemplateGenerator
 from openff.toolkit.topology import Molecule
 
@@ -23,6 +23,7 @@ class MolecularDynamics:
         # TODO: https://simtk.org/api_docs/openmm/api6_0/python/classsimtk_1_1openmm_1_1app_1_1pdbfile_1_1PDBFile.html#a5e8a38af13069a0cc3fff9aae26892e4
         print("Reading structure from PDB file...")
         pdb = app.PDBFile('input.pdb')
+        # TODO: *** CONVERSION FUNCTIONS ***
 
         # non-standard residue needs to generate a force field template
         if md_params.get("system type") == "ligand":
@@ -30,6 +31,7 @@ class MolecularDynamics:
             # TODO: This is where the molecule connectivity is read in.
             # TODO: https://docs.openforcefield.org/projects/toolkit/en/stable/api/generated/openff.toolkit.topology.Molecule.html
             ligand = Molecule.from_file("input.sdf")
+            # TODO: *** CONVERSION FUNCTIONS ***
             topology = ligand.to_topology().to_openmm()
             gaff = GAFFTemplateGenerator(molecules=ligand)
             forcefield.registerTemplateGenerator(gaff.generator)
