@@ -23,7 +23,8 @@ def main():
         if md_params.get("system type") == "ligand":
             entry.ligand(md_params.get("CSD identifier"))
         elif md_params.get("system type") == "protein":
-            entry.protein(md_params.get("CSD identifier"))
+            pass
+            # TODO: get protein structure
 
     # TODO: protein-ligand docking option here.
 

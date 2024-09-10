@@ -10,6 +10,7 @@
 from ccdc.conformer import ConformerGenerator
 from ccdc.io import MoleculeWriter
 from ccdc.io import EntryReader
+from ccdc import search
 
 class CSDDatabase:
 

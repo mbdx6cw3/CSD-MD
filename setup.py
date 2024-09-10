@@ -16,12 +16,12 @@ class MolecularDynamics:
 
         # setup force field
         forcefield = app.ForceField("amber14-all.xml", "amber14/tip3p.xml")
-        print("Reading structure from PDB file...")
 
         # TODO: ***CONVERSION FUNCTIONS***
         # TODO: This is where the coordinates are read in.
         # TODO: http://docs.openmm.org/latest/api-python/generated/openmm.app.pdbfile.PDBFile.html
         # TODO: https://simtk.org/api_docs/openmm/api6_0/python/classsimtk_1_1openmm_1_1app_1_1pdbfile_1_1PDBFile.html#a5e8a38af13069a0cc3fff9aae26892e4
+        print("Reading structure from PDB file...")
         pdb = app.PDBFile('input.pdb')
 
         # non-standard residue needs to generate a force field template
@@ -44,18 +44,23 @@ class MolecularDynamics:
             n_solvent = len(modeller.getPositions()) - ligand.n_atoms
             print(f"{n_solvent} solvent molecules added...")
 
-        # charges assigned using am1bcc
-        # bug in OpenFF Toolkit means this doesn't always work so in a loop for now
-        # TODO: sorting OpenEye license will probably avoid this problem
-        while True:
-            try:
-                system = forcefield.createSystem(modeller.topology, nonbondedCutoff=cutoff,
-                                                 nonbondedMethod=app.PME)
-                print("Charge assignment succeeded...")
-                break
-            except:
-                print("Charge assignment failed...")
-                pass
+        if md_params.get("system type") == "protein":
+            system = forcefield.createSystem(modeller.topology,
+                                             nonbondedCutoff=cutoff,
+                                             nonbondedMethod=app.PME)
+        elif md_params.get("system type") == "ligand":
+            # charges assigned using am1bcc
+            # bug in OpenFF Toolkit means this doesn't always work so in a loop for now
+            # TODO: sorting OpenEye license will probably avoid this problem
+            while True:
+                try:
+                    system = forcefield.createSystem(modeller.topology, nonbondedCutoff=cutoff,
+                                                     nonbondedMethod=app.PME)
+                    print("Charge assignment succeeded...")
+                    break
+                except:
+                    print("Charge assignment failed...")
+                    pass
 
         # if using pair-net load a model and set all intramolecular ligand interactions to zero
         if md_params.get("pair-net"):
