@@ -33,7 +33,7 @@ non-standard residue template with AM1-BCC charges assigned.
 Example usage:
 "python CSD-MD.py --md_params input.yaml > md.log"
 
-Example input file:
+Example .yaml input file (input.yaml by default):
 
     name: demonstration
     system type: ligand
