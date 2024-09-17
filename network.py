@@ -4,11 +4,11 @@
 This module is for running a NN with a training set of data.
 '''
 from __future__ import print_function  # for tf printing
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+import tensorflow as tf
 from tensorflow.keras.layers import Input, Dense, Layer
 from tensorflow.keras.models import Model
-import tensorflow as tf
-import numpy as np
-
 
 class NuclearChargePairs(Layer):
     def __init__(self, _NC2, n_atoms, **kwargs):
@@ -63,7 +63,6 @@ class CoordsToNRF(Layer):
         _NRF = tf.reshape(_NRF,
                           shape=(
                           tf.shape(coords)[0], self._NC2))  # reshape to _NC2
-        tf.print(_NRF)
         return _NRF
 
 
@@ -94,7 +93,6 @@ class Eij(Layer):
         return (batch_size, self._NC2)
 
     def call(self, decomp_scaled):
-        tf.print(decomp_scaled)
         decomp_scaled = tf.reshape(decomp_scaled,
                                    shape=(tf.shape(decomp_scaled)[0], -1))
         decomp = (decomp_scaled - 0.5) * (2 * self.max_Eij)
@@ -174,8 +172,6 @@ class Network(object):
         n_nodes = ann_params["n_nodes"]
         if ann_params["n_nodes"] == "auto":
             n_nodes = [n_atoms * 30] * n_layers
-
-        print(ann_params)
 
         # set prescaling factors
         max_NRF = tf.constant(prescale[4], dtype=tf.float32)
