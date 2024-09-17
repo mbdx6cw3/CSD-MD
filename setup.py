@@ -70,7 +70,7 @@ class MolecularDynamics:
                     pass
 
         # if using pair-net must set all intramolecular ligand interactions to zero
-        if md_params.get("pair-net model"):
+        if md_params.get("pair-net model") != "none":
 
             # exclude all non-bonded interactions
             nb = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
@@ -124,10 +124,6 @@ class MolecularDynamics:
         simulation.reporters.append(app.PDBReporter("output.pdb", 1, enforcePeriodicBox=True))
         simulation.reporters.append(app.StateDataReporter(stdout, 1, step=True,
             potentialEnergy=True, temperature=True))
-
-        if not md_params.get("pair-net model"):
-            print("Minimising initial structure...")
-            simulation.minimizeEnergy()
 
         return simulation, ml_force
 

@@ -19,7 +19,7 @@ class MolecularDynamics:
         time = md_params.get("simulation time (ns)") * unit.nanoseconds
         n_steps = int(time / dt)
 
-        if md_params.get("pair-net model"):
+        if md_params.get("pair-net model") != "none":
             input_dir = f"./pair-net_models/{md_params.get('pair-net model')}"
             isExist = os.path.exists(input_dir)
             if not isExist:
