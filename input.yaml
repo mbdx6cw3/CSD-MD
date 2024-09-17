@@ -1,9 +1,10 @@
-name: Demonstration
+name: demonstration
 system type: ligand
 CSD identifier: ACSALA
-solvate system: yes
+PairNet model: aspirin
+solvate system: no
 simulation type: standard
-pair-net: no
+pair-net: yes
 simulation time (ns): 0.01
 timestep (fs): 1.0
 temperature (K): 300.0

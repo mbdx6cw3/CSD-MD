@@ -22,8 +22,8 @@ class MolecularDynamics:
         # TODO: http://docs.openmm.org/latest/api-python/generated/openmm.app.pdbfile.PDBFile.html
         # TODO: https://simtk.org/api_docs/openmm/api6_0/python/classsimtk_1_1openmm_1_1app_1_1pdbfile_1_1PDBFile.html#a5e8a38af13069a0cc3fff9aae26892e4
         print("Reading structure from PDB file...")
-        pdb = app.PDBFile('aspirin_mapped.pdb')
-        # TODO: PDBFile is a class from the OpenMM application layer, which is written in Python, not C++.
+        pdb = app.PDBFile('input.pdb')
+        # TODO: PDBFile is a class from the OpenMM Python application layer.
         # TODO: ***CONVERSION FUNCTIONS***
 
         # non-standard residue needs to generate a force field template
@@ -32,7 +32,7 @@ class MolecularDynamics:
             # TODO: This is where the molecule connectivity is read in.
             # TODO: https://docs.openforcefield.org/projects/toolkit/en/stable/api/generated/openff.toolkit.topology.Molecule.html
             ligand = Molecule.from_file("input.sdf")
-            # TODO: Molecule is a class from OpenFF-toolkits, which is also written in Python.
+            # TODO: Molecule is a class from OpenFF-toolkits, which is Python.
             # TODO: ***CONVERSION FUNCTIONS***
             topology = ligand.to_topology().to_openmm()
             gaff = GAFFTemplateGenerator(molecules=ligand)
@@ -77,10 +77,6 @@ class MolecularDynamics:
                 for j in range(i):
                     nb.addException(i, j, 0, 1, 0, replace=True)
 
-            # alternative to the above but wouldn't work with ML/MM system
-            #for i in range(system.getNumParticles()):
-            #    nb.setParticleParameters(i, 0, 1, 0)
-
             # set all bond force constants to zero
             bond_force = [f for f in system.getForces() if isinstance(f, HarmonicBondForce)][0]
             for i in range(bond_force.getNumBonds()):
@@ -120,8 +116,8 @@ class MolecularDynamics:
         # setup simulation and output
         simulation = app.Simulation(modeller.topology, system, integrator)
         simulation.context.setPositions(modeller.positions)
-        if md_params.get("ensemble") == "NVT":
-            simulation.context.setVelocitiesToTemperature(temp)
+        #if md_params.get("ensemble") == "NVT":
+        #    simulation.context.setVelocitiesToTemperature(temp)
         simulation.reporters.append(app.PDBReporter("output.pdb", 1, enforcePeriodicBox=True))
         simulation.reporters.append(app.StateDataReporter(stdout, 1, step=True,
             potentialEnergy=True, temperature=True))

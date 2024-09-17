@@ -20,7 +20,12 @@ class MolecularDynamics:
         n_steps = int(time / dt)
 
         if md_params.get("pair-net"):
-            model, atoms = load_pairnet()
+            input_dir = f"./pairnet_models/{md_params.get('PairNet model')}"
+            isExist = os.path.exists(input_dir)
+            if not isExist:
+                print("ERROR. Previously trained model could not be located.")
+                exit()
+            model, atoms = load_pairnet(input_dir)
             n_atoms = len(atoms)
             # this step is necessary because pairnet predicts forces for an arbitrary atom ordering
             # TODO: Ideally would not need a manually created mapping file.
@@ -28,7 +33,7 @@ class MolecularDynamics:
             # TODO: This can be made more efficient if either:
             # TODO: 1) atom ordering of CCDC outputs can be changed
             # TODO: 2) mapping of topology/structure prior to starting simulation
-            mapping = np.loadtxt(f"./atom_mapping.dat", dtype=int)
+            mapping = np.loadtxt(f"{input_dir}/atom_mapping.dat", dtype=int)
             csd2pairnet = mapping[:, 0]
             pairnet2csd = mapping[:, 1]
             for i in range(n_steps):
@@ -52,19 +57,14 @@ class MolecularDynamics:
         return None
 
 
-def load_pairnet():
-    input_dir = "trained_model"
-    isExist = os.path.exists(input_dir)
-    if not isExist:
-        print("ERROR. Previously trained model could not be located.")
-        exit()
+def load_pairnet(input_dir):
     print("Loading a previously trained model...")
-    atoms = np.loadtxt(f"./{input_dir}/atoms.txt", dtype=np.float32).reshape(-1)
-    ann_params = Network.read_params(f"{input_dir}/ann_params.txt")
-    prescale = np.loadtxt(f"./{input_dir}/prescale.txt", dtype=np.float64).reshape(-1)
+    atoms = np.loadtxt(f"./{input_dir}/trained_model/atoms.txt", dtype=np.float32).reshape(-1)
+    ann_params = Network.read_params(f"{input_dir}/trained_model/ann_params.txt")
+    prescale = np.loadtxt(f"./{input_dir}/trained_model/prescale.txt", dtype=np.float64).reshape(-1)
     network = Network()
     model = network.build(len(atoms), ann_params, prescale)
     model.summary()
-    model.load_weights(f"./{input_dir}/best_ever_model").expect_partial()
+    model.load_weights(f"./{input_dir}/trained_model/best_ever_model").expect_partial()
     return model, atoms
 
