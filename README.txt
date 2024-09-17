@@ -1,7 +1,7 @@
 CSD-MD is a Python package that enables the user to setup and run a molecular
 dynamics simulation from an entry in the Cambridge Structural Database.
 
-Environment setup:
+Installation:
 
 Note, CSD System must first be installed:
 https://www.ccdc.cam.ac.uk/support-and-resources/csdsdownloads/
@@ -30,20 +30,43 @@ required to retrieve a structure from CSD and run an MD simulation.
 For a ligand simulation openmmforcefields is used to generate a
 non-standard residue template with AM1-BCC charges assigned.
 
-Input options:
-...to follow
-
-Available force fields:
-...to follow
-
-System type:
-...to follow
-
-Simulation type:
-...to follow
-
 Example usage:
 "python CSD-MD.py --md_params input.yaml > md.log"
 
+Example input file:
 
+    name: demonstration
+    system type: ligand
+    CSD identifier: ACSALA
+    pair-net model: none
+    solvate system: yes
+    simulation type: standard
+    simulation time (ns): 0.01
+    timestep (fs): 1.0
+    temperature (K): 300.0
+    ensemble: NVT
 
+Input options:
+
+    name:                   name of the simulation
+
+    system type:            "ligand", "protein" or "protein-ligand"
+
+    CSD identifier:         identifier associated with CSD entry
+
+    pair-net model:         name of trained pair-net model to search for in
+                            "pair-net_models" directory. "None" will default
+                            to Amber potential. More MM potentials to be added
+
+    solvate system:         "yes" will fill box with explicit waters, modelled
+                            by default using TIP3P
+
+    simulation type:        "standard" is the only option for now
+
+    simulation time (ns):   total simulation time in ns
+
+    timestep (fs):          integration timestep in femtoseconds
+
+    temperature (K):        temperature in Kelvin
+
+    ensemble:               "NVT"

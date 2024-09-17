@@ -32,7 +32,7 @@ class MolecularDynamics:
             # TODO: This is where the molecule connectivity is read in.
             # TODO: https://docs.openforcefield.org/projects/toolkit/en/stable/api/generated/openff.toolkit.topology.Molecule.html
             ligand = Molecule.from_file("input.sdf")
-            # TODO: Molecule is a class from OpenFF-toolkits, which is Python.
+            # TODO: Molecule is a class from OpenFF-toolkits.
             # TODO: ***CONVERSION FUNCTIONS***
             topology = ligand.to_topology().to_openmm()
             gaff = GAFFTemplateGenerator(molecules=ligand)
@@ -49,17 +49,18 @@ class MolecularDynamics:
             n_solvent = len(modeller.getPositions()) - ligand.n_atoms
             print(f"{n_solvent} solvent molecules added...")
 
+        # construct OpenMM system object using topology and other MD run parameters
         if md_params.get("system type") == "protein":
             system = forcefield.createSystem(modeller.topology,
-                                             nonbondedCutoff=cutoff,
-                                             nonbondedMethod=app.PME)
+                nonbondedCutoff=cutoff, nonbondedMethod=app.PME)
 
         elif md_params.get("system type") == "ligand":
             # charges assigned using am1bcc
-            # bug in OpenFF Toolkit means this doesn't always work so in a loop for now
+            # bug in OpenFF Toolkit means this doesn't always work first time, so in a loop for now
             # TODO: sorting OpenEye license will probably avoid this problem
             while True:
                 try:
+                    # construct OpenMM system object using topology and other MD run parameters
                     system = forcefield.createSystem(modeller.topology, nonbondedCutoff=cutoff,
                                                      nonbondedMethod=app.PME)
                     print("Charge assignment succeeded...")
@@ -69,7 +70,7 @@ class MolecularDynamics:
                     pass
 
         # if using pair-net must set all intramolecular ligand interactions to zero
-        if md_params.get("pair-net"):
+        if md_params.get("pair-net model"):
 
             # exclude all non-bonded interactions
             nb = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
@@ -114,15 +115,17 @@ class MolecularDynamics:
             integrator = LangevinMiddleIntegrator(temp, temp_coupling, dt)
 
         # setup simulation and output
+        # Simulation object ties together topology, system and integrator
+        # and maintains list of reporter objects that record or analyse data
         simulation = app.Simulation(modeller.topology, system, integrator)
         simulation.context.setPositions(modeller.positions)
-        #if md_params.get("ensemble") == "NVT":
-        #    simulation.context.setVelocitiesToTemperature(temp)
+        if md_params.get("ensemble") == "NVT":
+            simulation.context.setVelocitiesToTemperature(temp)
         simulation.reporters.append(app.PDBReporter("output.pdb", 1, enforcePeriodicBox=True))
         simulation.reporters.append(app.StateDataReporter(stdout, 1, step=True,
             potentialEnergy=True, temperature=True))
 
-        if not md_params.get("pair-net"):
+        if not md_params.get("pair-net model"):
             print("Minimising initial structure...")
             simulation.minimizeEnergy()
 
