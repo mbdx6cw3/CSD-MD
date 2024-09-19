@@ -17,21 +17,18 @@ class MolecularDynamics:
 
         # setup force field
         forcefield = app.ForceField("amber14-all.xml", "amber14/tip3p.xml")
-        # TODO: ***CONVERSION FUNCTIONS***
-        # TODO: This is where the coordinates are read in.
-        # TODO: http://docs.openmm.org/latest/api-python/generated/openmm.app.pdbfile.PDBFile.html
-        # TODO: https://simtk.org/api_docs/openmm/api6_0/python/classsimtk_1_1openmm_1_1app_1_1pdbfile_1_1PDBFile.html#a5e8a38af13069a0cc3fff9aae26892e4
-        print("Reading structure from PDB file...")
-        pdb = app.PDBFile('input.pdb')
-        # TODO: PDBFile is a class from the OpenMM Python application layer.
-        # TODO: ***CONVERSION FUNCTIONS***
 
         # non-standard residue needs to generate a force field template
         if md_params.get("system type") == "ligand":
             # TODO: ***CONVERSION FUNCTIONS***
+            # TODO: This is where the coordinates are read in.
+            # TODO: http://docs.openmm.org/latest/api-python/generated/openmm.app.pdbfile.PDBFile.html
+            print("Reading structure from PDB file...")
+            pdb = app.PDBFile('ligand.pdb')
+            # TODO: PDBFile is a class from the OpenMM Python application layer.
             # TODO: This is where the molecule connectivity is read in.
             # TODO: https://docs.openforcefield.org/projects/toolkit/en/stable/api/generated/openff.toolkit.topology.Molecule.html
-            ligand = Molecule.from_file("input.sdf")
+            ligand = Molecule.from_file("ligand.sdf")
             # TODO: Molecule is a class from OpenFF-toolkits.
             # TODO: ***CONVERSION FUNCTIONS***
             topology = ligand.to_topology().to_openmm()
@@ -39,7 +36,16 @@ class MolecularDynamics:
             forcefield.registerTemplateGenerator(gaff.generator)
             topology.setUnitCellDimensions([2.5]*3)
         elif md_params.get("system type") == "protein":
+            # TODO: ***CONVERSION FUNCTIONS***
+            # TODO: This is where the protein coordinates are read in.
+            # TODO: http://docs.openmm.org/latest/api-python/generated/openmm.app.pdbfile.PDBFile.html
+            print("Reading structure from PDB file...")
+            pdb = app.PDBFile('protein.pdb')
+            # TODO: this is where the protein topology is defined.
             topology = pdb.topology
+            # TODO: ***CONVERSION FUNCTIONS***
+        elif md_params.get("system type") == "protein-ligand":
+            pass
 
         modeller = app.Modeller(topology, pdb.positions)
         cutoff = 1.0*unit.nanometer
@@ -51,6 +57,8 @@ class MolecularDynamics:
 
         # construct OpenMM system object using topology and other MD run parameters
         if md_params.get("system type") == "protein":
+            modeller.addHydrogens(forcefield)
+            modeller.deleteWater()
             system = forcefield.createSystem(modeller.topology,
                 nonbondedCutoff=cutoff, nonbondedMethod=app.PME)
 
@@ -121,8 +129,8 @@ class MolecularDynamics:
         simulation.context.setPositions(modeller.positions)
         if md_params.get("ensemble") == "NVT":
             simulation.context.setVelocitiesToTemperature(temp)
-        simulation.reporters.append(app.PDBReporter("output.pdb", 1, enforcePeriodicBox=True))
-        simulation.reporters.append(app.StateDataReporter(stdout, 1, step=True,
+        simulation.reporters.append(app.PDBReporter("output.pdb", 10, enforcePeriodicBox=True))
+        simulation.reporters.append(app.StateDataReporter(stdout, 10, step=True,
             potentialEnergy=True, temperature=True))
 
         return simulation, ml_force

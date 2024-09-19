@@ -14,11 +14,11 @@ bash Mambaforge-Linux-x86_64.sh ---> yes to initialise at the end (add executabl
 Example environment setup:
 mamba create -n ccdc python=3.9
 mamba activate ccdc
-mamba install openmm openmmforcefields pyyaml tensorflow=2.12.0
+mamba install openmm openmmforcefields pyyaml tensorflow=2.12.0 biopython
 python -m pip install --extra-index-url https://pip.ccdc.cam.ac.uk/ csd-python-api
 
 Notes:
- - Problems finding the CSD Database so had to follow instructions here to set
+ Problems finding the CSD Database so had to follow instructions here to set
  up mamba and save environment variables in ./etc/conda/activate.d/env_vars.sh:
  https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#set-env-vars
 
@@ -70,3 +70,16 @@ Input options:
     temperature (K):        temperature in Kelvin
 
     ensemble:               "NVT"
+
+
+References:
+1) Biopython
+Hamelryck, T., Manderick, B. (2003) PDB parser and structure class implemented
+in Python. Bioinformatics 19: 2308–2310.
+2) CCDC conformer generator
+
+3) CCDC docking tool.
+
+4) OpenMM
+
+5) OpenFF

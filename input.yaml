@@ -1,10 +1,11 @@
 name: demonstration
 system type: ligand
 CSD identifier: ACSALA
-pair-net model: spaniel
+PDB identifier: 3I40
+pair-net model: aspirin
 solvate system: no
 simulation type: standard
-simulation time (ns): 0.01
+simulation time (ns): 0.001
 timestep (fs): 1.0
 temperature (K): 300.0
 ensemble: NVT

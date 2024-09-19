@@ -10,6 +10,8 @@
 from ccdc.conformer import ConformerGenerator
 from ccdc.io import MoleculeWriter
 from ccdc.io import EntryReader
+from Bio.PDB import PDBList
+import os
 
 class CSDDatabase:
 
@@ -25,19 +27,25 @@ class CSDDatabase:
         conformer_generator = ConformerGenerator()
         conformers = conformer_generator.generate(ligand)
 
-        with MoleculeWriter("input.pdb") as mol_writer:
+        with MoleculeWriter("ligand.pdb") as mol_writer:
             mol_writer.write(conformers[0].molecule)
 
-        with MoleculeWriter("input.sdf") as mol_writer:
+        with MoleculeWriter("ligand.sdf") as mol_writer:
             mol_writer.write(conformers[0].molecule)
 
-        return
+        return None
 
-    
+class PDBDatabase:
+
     def protein(self, identifier):
         """
 
         :return:
         """
+        pdb_list = PDBList()
+        pdb_filename = pdb_list.retrieve_pdb_file(identifier,
+            pdir="./", file_format="pdb", overwrite=True)
+        os.rename(f"pdb{identifier}.ent", "protein.pdb")
+
         return None
 

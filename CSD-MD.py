@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
-import read_inputs, setup, simulate, get_structure
+__author__ = ['Christopher D Williams']
+__credits__ = [...]
+__license__ = '...'
+__maintainer__ = 'Christopher D Williams'
+__email__ = 'christopher.williams@manchester.ac.uk'
+__status__ = 'Development'
 
-# TODO: apply to all modules
-import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def main():
     """
 
     :return:
     """
+    import read_inputs, setup, simulate, get_structure
+
+    # TODO: apply to all modules
+    import warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     print("Reading input parameters...")
     md_params = read_inputs.csdMD()
@@ -17,22 +24,22 @@ def main():
     print("Simulation:", md_params.get("name"))
     print()
 
-    if md_params.get("CSD identifier") != "n/a":
-        print("Retrieving entry from CSD...")
+
+    if md_params.get("system type") == "ligand":
+        print("Retrieving CSD entry...")
         entry = get_structure.CSDDatabase()
-        if md_params.get("system type") == "ligand":
-            entry.ligand(md_params.get("CSD identifier"))
-        elif md_params.get("system type") == "protein":
-            pass
-            # TODO: get protein structure
+        entry.ligand(md_params.get("CSD identifier"))
+    elif md_params.get("system type") == "protein":
+        print("Retrieving PDB entry...")
+        entry = get_structure.PDBDatabase()
+        entry.protein(md_params.get("PDB identifier"))
+    else:
+        pass
 
     # TODO: protein-ligand docking option here.
 
     print("Setting up MD simulation...")
     simulation, force = setup.MolecularDynamics().openMM(md_params)
-
-    print("Minimising initial structure...")
-    simulation.minimizeEnergy()
 
     print("Performing MD simulation...")
     simulate.MolecularDynamics().standard(md_params, simulation, force)
