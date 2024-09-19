@@ -38,6 +38,7 @@ Example .yaml input file (input.yaml by default):
     name: demonstration
     system type: ligand
     CSD identifier: ACSALA
+    PDB identifier: 3I40
     pair-net model: none
     solvate system: yes
     simulation type: standard
@@ -52,7 +53,9 @@ Input options:
 
     system type:            "ligand", "protein" or "protein-ligand"
 
-    CSD identifier:         identifier associated with CSD entry
+    CSD identifier:         identifier associated with CSD ligand entry
+
+    PDB identifier:         identifier associated with PDB protein entry
 
     pair-net model:         name of trained pair-net model to search for in
                             "pair-net_models" directory. "None" will default
