@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 __author__ = ['Christopher D Williams']
-__credits__ = [...]
+__credits__ = ['Kepa Burusco-Goni, Simon Cottrell, Austin Lloyd, '
+               'Bojana Popovic, Richard Bryce ']
 __license__ = '...'
 __maintainer__ = 'Christopher D Williams'
 __email__ = 'christopher.williams@manchester.ac.uk'
@@ -23,15 +24,28 @@ def main():
     print()
 
     if md_params.get("system type") == "ligand":
+        ligand = True
+        protein = False
+    elif md_params.get("system type") == "protein":
+        ligand = True
+        protein = False
+    elif md_params.get("system type") == "ligand-protein":
+        ligand = True
+        protein = True
+    else:
+        print("ERROR - system type not allowed.")
+        print("Allowed system types: ligand, protein or ligand-protein")
+        exit()
+
+    if ligand:
         print("Retrieving CSD entry...")
         entry = get_structure.CSDDatabase()
         entry.ligand(md_params.get("CSD identifier"))
-    elif md_params.get("system type") == "protein":
+
+    if protein:
         print("Retrieving PDB entry...")
         entry = get_structure.PDBDatabase()
         entry.protein(md_params.get("PDB identifier"))
-    else:
-        pass
 
     # TODO: protein-ligand docking option here.
 
