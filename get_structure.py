@@ -10,8 +10,8 @@
 from ccdc.conformer import ConformerGenerator
 from ccdc.io import MoleculeWriter
 from ccdc.io import EntryReader
-from Bio.PDB import PDBList
-import os
+from pdbfixer import PDBFixer
+from openmm import app
 
 class CSDDatabase:
 
@@ -42,10 +42,25 @@ class PDBDatabase:
 
         :return:
         """
+        '''
+        old method
         pdb_list = PDBList()
-        pdb_filename = pdb_list.retrieve_pdb_file(identifier,
+        pdb_list.retrieve_pdb_file(identifier,
             pdir="./", file_format="pdb", overwrite=True)
         os.rename(f"pdb{identifier}.ent", "protein.pdb")
+        '''
+        # new method: use PDBFixer to retrieve PDB instead of biopython
+        # it has functions
+        fixer = PDBFixer(pdbid=identifier)
+        fixer.findMissingResidues()
+        fixer.findNonstandardResidues()
+        fixer.replaceNonstandardResidues()
+        fixer.removeHeterogens(True)
+        fixer.findMissingAtoms()
+        fixer.addMissingAtoms()
+        fixer.addMissingHydrogens(7.0)
+        app.PDBFile.writeFile(fixer.topology, fixer.positions,
+                          open('protein.pdb', 'w'))
 
         return None
 

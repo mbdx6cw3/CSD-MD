@@ -13,8 +13,6 @@ def main():
     :return:
     """
     import read_inputs, setup, simulate, get_structure
-
-    # TODO: apply to all modules
     import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -23,7 +21,6 @@ def main():
 
     print("Simulation:", md_params.get("name"))
     print()
-
 
     if md_params.get("system type") == "ligand":
         print("Retrieving CSD entry...")

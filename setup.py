@@ -24,7 +24,7 @@ class MolecularDynamics:
             # TODO: This is where the coordinates are read in.
             # TODO: http://docs.openmm.org/latest/api-python/generated/openmm.app.pdbfile.PDBFile.html
             print("Reading structure from PDB file...")
-            pdb = app.PDBFile('ligand.pdb')
+            pdb = app.PDBFile("ligand.pdb")
             # TODO: PDBFile is a class from the OpenMM Python application layer.
             # TODO: This is where the molecule connectivity is read in.
             # TODO: https://docs.openforcefield.org/projects/toolkit/en/stable/api/generated/openff.toolkit.topology.Molecule.html
@@ -52,13 +52,11 @@ class MolecularDynamics:
 
         if md_params.get("solvate system"):
             modeller.addSolvent(forcefield)
-            n_solvent = len(modeller.getPositions()) - ligand.n_atoms
+            n_solvent = len(modeller.getPositions()) - len(pdb.positions)
             print(f"{n_solvent} solvent molecules added...")
 
         # construct OpenMM system object using topology and other MD run parameters
         if md_params.get("system type") == "protein":
-            modeller.addHydrogens(forcefield)
-            modeller.deleteWater()
             system = forcefield.createSystem(modeller.topology,
                 nonbondedCutoff=cutoff, nonbondedMethod=app.PME)
 
@@ -79,7 +77,7 @@ class MolecularDynamics:
 
         # if using pair-net must set all intramolecular ligand interactions to zero
         if md_params.get("pair-net model") != "none":
-
+            print("hello")
             # exclude all non-bonded interactions
             nb = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
             for i in range(ligand.n_atoms):
@@ -132,6 +130,9 @@ class MolecularDynamics:
         simulation.reporters.append(app.PDBReporter("output.pdb", 10, enforcePeriodicBox=True))
         simulation.reporters.append(app.StateDataReporter(stdout, 10, step=True,
             potentialEnergy=True, temperature=True))
+        if md_params.get("system type") == "protein":
+            print("Minimising initial protein structure...")
+            simulation.minimizeEnergy()
 
         return simulation, ml_force
 
