@@ -93,7 +93,3 @@ References:
     Atomistic Simulations of Flexible Molecules using Conformationally
     Generalisable Machine Learned Potentials, 2024, Chem. Sci., 15: 12780-12795.
 
-
-
-Biopython: T Hamelryck, B Manderick, PDB parser and structure class
-implemented in Python, 2003, Bioinformatics 19: 2308–2310. REMOVE?
