@@ -7,60 +7,47 @@
 #sys.path.insert(1, "/mnt/iusers01/rb01/mbdx6cw3/.local/lib/python3.7/site-packages")
 #sys.path.insert(1, "/mnt/iusers01/rb01/mbdx6cw3/mambaforge/envs/ccdc_new/lib/python3.7/site-packages")
 
-from ccdc.conformer import ConformerGenerator
-from ccdc.io import MoleculeWriter
-from ccdc.io import EntryReader
-from pdbfixer import PDBFixer
-from openmm import app
 
-class CSDDatabase:
+def ligand(identifier):
+    """
 
-    def ligand(self, identifier):
-        """
+    :return:
+    """
+    from ccdc.conformer import ConformerGenerator
+    from ccdc.io import MoleculeWriter
+    from ccdc.io import EntryReader
 
-        :return:
-        """
+    csd_reader = EntryReader("CSD")
+    entry = csd_reader.entry(identifier)
+    ligand = entry.molecule
+    conformer_generator = ConformerGenerator()
+    conformers = conformer_generator.generate(ligand)
 
-        csd_reader = EntryReader("CSD")
-        entry = csd_reader.entry(identifier)
-        ligand = entry.molecule
-        conformer_generator = ConformerGenerator()
-        conformers = conformer_generator.generate(ligand)
+    with MoleculeWriter("input.pdb") as mol_writer:
+        mol_writer.write(conformers[0].molecule)
 
-        with MoleculeWriter("ligand.pdb") as mol_writer:
-            mol_writer.write(conformers[0].molecule)
+    with MoleculeWriter("ligand.sdf") as mol_writer:
+        mol_writer.write(conformers[0].molecule)
 
-        with MoleculeWriter("ligand.sdf") as mol_writer:
-            mol_writer.write(conformers[0].molecule)
+    return None
 
-        return None
 
-class PDBDatabase:
+def protein(identifier):
+    """
 
-    def protein(self, identifier):
-        """
+    :return:
+    """
+    from pdbfixer import PDBFixer
+    from openmm import app
 
-        :return:
-        """
-        '''
-        old method
-        pdb_list = PDBList()
-        pdb_list.retrieve_pdb_file(identifier,
-            pdir="./", file_format="pdb", overwrite=True)
-        os.rename(f"pdb{identifier}.ent", "protein.pdb")
-        '''
-        # new method: use PDBFixer to retrieve PDB instead of biopython
-        # it has functions
-        fixer = PDBFixer(pdbid=identifier)
-        fixer.findMissingResidues()
-        fixer.findNonstandardResidues()
-        fixer.replaceNonstandardResidues()
-        fixer.removeHeterogens(True)
-        fixer.findMissingAtoms()
-        fixer.addMissingAtoms()
-        fixer.addMissingHydrogens(7.0)
-        app.PDBFile.writeFile(fixer.topology, fixer.positions,
-                          open('protein.pdb', 'w'))
-
-        return None
+    fixer = PDBFixer(pdbid=identifier)
+    fixer.findMissingResidues()
+    fixer.findNonstandardResidues()
+    fixer.replaceNonstandardResidues()
+    fixer.removeHeterogens(True)
+    fixer.findMissingAtoms()
+    fixer.addMissingAtoms()
+    fixer.addMissingHydrogens(7.0)
+    app.PDBFile.writeFile(fixer.topology, fixer.positions, open('input.pdb', 'w'))
+    return None
 

@@ -6,6 +6,7 @@ __license__ = '...'
 __maintainer__ = 'Christopher D Williams'
 __email__ = 'christopher.williams@manchester.ac.uk'
 __status__ = 'Development'
+__funding__ = "Funded by UKRI IAA"
 
 
 def main():
@@ -13,48 +14,35 @@ def main():
 
     :return:
     """
-    import read_inputs, setup, simulate, get_structure
+    import get_structure
+    from molecular_dynamics import MolecularDynamics
     import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
+    simulation = MolecularDynamics()
+
     print("Reading input parameters...")
-    md_params = read_inputs.csdMD()
+    simulation.read_inputs()
 
-    print("Simulation:", md_params.get("name"))
-    print()
-
-    if md_params.get("system type") == "ligand":
-        ligand = True
-        protein = False
-    elif md_params.get("system type") == "protein":
-        ligand = True
-        protein = False
-    elif md_params.get("system type") == "ligand-protein":
-        ligand = True
-        protein = True
-    else:
-        print("ERROR - system type not allowed.")
-        print("Allowed system types: ligand, protein or ligand-protein")
-        exit()
-
-    if ligand:
+    if simulation.system_type != "protein":
         print("Retrieving CSD entry...")
-        entry = get_structure.CSDDatabase()
-        entry.ligand(md_params.get("CSD identifier"))
+        get_structure.ligand(simulation.CSD)
 
-    if protein:
+    if simulation.system_type != "ligand":
         print("Retrieving PDB entry...")
-        entry = get_structure.PDBDatabase()
-        entry.protein(md_params.get("PDB identifier"))
+        get_structure.protein(simulation.PDB)
 
     # TODO: protein-ligand docking option here.
+    if simulation.system_type == "ligand-protein":
+        pass
 
     print("Setting up MD simulation...")
-    simulation, force = setup.MolecularDynamics().openMM(md_params)
+    simulation.setup()
 
     print("Performing MD simulation...")
-    simulate.MolecularDynamics().standard(md_params, simulation, force)
+    simulation.standard()
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     main()
+
