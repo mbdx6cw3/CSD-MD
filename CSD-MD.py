@@ -14,26 +14,27 @@ def main():
 
     :return:
     """
-    import get_structure
+    from get_structure import GetStructure
     from molecular_dynamics import MolecularDynamics
     import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     simulation = MolecularDynamics()
+    structure = GetStructure()
 
     print("Reading input parameters...")
     simulation.read_inputs()
 
     if simulation.system_type != "protein":
         print("Retrieving CSD entry...")
-        get_structure.ligand(simulation.CSD)
+        structure.ligand(simulation.CSD)
 
     if simulation.system_type != "ligand":
         print("Retrieving PDB entry...")
-        get_structure.protein(simulation.PDB)
+        structure.protein(simulation.PDB)
 
-    # TODO: protein-ligand docking option here.
     if simulation.system_type == "ligand-protein":
+        # TODO: protein-ligand docking option here.
         pass
 
     print("Setting up MD simulation...")
