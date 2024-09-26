@@ -39,6 +39,7 @@ class MolecularDynamics():
         self.dt = md_params.get("timestep (fs)")
         self.pairnet = md_params.get("pair-net model")
         self.time = md_params.get("simulation time (ns)")
+        self.pairnet_lib = md_params.get("pair-net library path")
 
         return md_params
 
@@ -194,7 +195,7 @@ class MolecularDynamics():
         n_steps = int(self.time/self.dt)
 
         if self.pairnet != "none":
-            input_dir = f"./pair-net_models/{self.pairnet}"
+            input_dir = f"{self.pairnet_lib}pair-net_models/{self.pairnet}"
             isExist = os.path.exists(input_dir)
             if not isExist:
                 print("ERROR. Previously trained model could not be located.")
@@ -207,20 +208,24 @@ class MolecularDynamics():
             # TODO: This can be made more efficient if either:
             # TODO: 1) atom ordering of CCDC outputs can be changed
             # TODO: 2) mapping of topology/structure prior to starting simulation
-            mapping = np.loadtxt(f"{input_dir}/atom_mapping.dat", dtype=int)
-            csd2pairnet = mapping[:, 0]
-            pairnet2csd = mapping[:, 1]
+            map = True
+            if map:
+                mapping = np.loadtxt(f"{input_dir}/atom_mapping.dat", dtype=int)
+                csd2pairnet = mapping[:, 0]
+                pairnet2csd = mapping[:, 1]
             for i in range(n_steps):
                 coords = self.simulation.context.getState(getPositions=True). \
                     getPositions(asNumpy=True).value_in_unit(unit.angstrom)
-                coords = coords[csd2pairnet] # map CSD to pairnet atom order
+                if map:
+                    coords = coords[csd2pairnet] # map CSD to pairnet atom order
                 if (i % 1000) == 0:
                     tf.keras.backend.clear_session()
                 prediction = model.predict_on_batch([np.reshape(coords[:n_atoms]
                     / unit.angstrom, (1, -1, 3)), np.reshape(atoms, (1, -1))])
                 ML_forces = prediction[0]*unit.kilocalories_per_mole/unit.angstrom
                 ML_forces = np.reshape(ML_forces, (-1, 3))
-                ML_forces = ML_forces[pairnet2csd] # map pairnet back to CSD
+                if map:
+                    ML_forces = ML_forces[pairnet2csd] # map pairnet back to CSD
                 for j in range(n_atoms):
                     self.ml_force.setParticleParameters(j, j, ML_forces[j])
                 self.ml_force.updateParametersInContext(self.simulation.context)
@@ -241,12 +246,12 @@ class MolecularDynamics():
         from network import Network
         import numpy as np
         print("Loading a previously trained model...")
-        atoms = np.loadtxt(f"./{input_dir}/trained_model/atoms.txt", dtype=np.float32).reshape(-1)
+        atoms = np.loadtxt(f"{input_dir}/trained_model/atoms.txt", dtype=np.float32).reshape(-1)
         ann_params = Network.read_params(f"{input_dir}/trained_model/ann_params.txt")
-        prescale = np.loadtxt(f"./{input_dir}/trained_model/prescale.txt", dtype=np.float64).reshape(-1)
+        prescale = np.loadtxt(f"{input_dir}/trained_model/prescale.txt", dtype=np.float64).reshape(-1)
         network = Network()
         model = network.build(len(atoms), ann_params, prescale)
         model.summary()
-        model.load_weights(f"./{input_dir}/trained_model/best_ever_model").expect_partial()
+        model.load_weights(f"{input_dir}/trained_model/best_ever_model").expect_partial()
         return model, atoms
 

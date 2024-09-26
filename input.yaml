@@ -1,8 +1,9 @@
 name: demonstration
-system type: protein
+system type: ligand
 CSD identifier: ACSALA
 PDB identifier: 3I40
-pair-net model: none
+pair-net model: aspirin
+pair-net library path: ./
 solvate system: no
 simulation type: standard
 simulation time (ns): 0.001
