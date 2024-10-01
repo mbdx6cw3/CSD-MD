@@ -2,13 +2,11 @@ name: demonstration
 system type: ligand
 CSD identifier: ACSALA
 PDB identifier: 3I40
-pair-net model: aspirin
+pair-net model: none
 pair-net library path: ./
-solvate system: no
+solvate system: yes
 simulation type: standard
 simulation time (ns): 0.001
 timestep (fs): 1.0
 temperature (K): 300.0
 ensemble: NVT
-
-# PDB identifier that works without/with fixing: 3I40/ 6YC3, 3J9P

@@ -11,11 +11,18 @@ Mamba installation instructions: https://github.com/conda-forge/miniforge
 wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh
 bash Mambaforge-Linux-x86_64.sh ---> yes to initialise at the end (add executables to the path)
 
-Example environment setup:
+Example environment setup - on local machine:
 mamba create -n ccdc python=3.9
 mamba activate ccdc
-mamba install openmm openmmforcefields pyyaml tensorflow=2.12.0 pdbfixer
+mamba install openmm openmmforcefields pyyaml tensorflow=2.12 pdbfixer
 python -m pip install --extra-index-url https://pip.ccdc.cam.ac.uk/ csd-python-api
+
+Example environment setup - on the CSF:
+mamba create -n ccdc python=3.9
+mamba activate ccdc
+mamba install -c /opt/apps/apps/binapps/ccdc-csds/2024.1/ccdc_conda_channel_py39 csd-python-api
+mamba install openmm openmmforcefields pyyaml pdbfixer
+export CCDC_LICENSING_CONFIGURATION='lf-server;http://login1:8090'
 
 Notes:
  Problems finding the CSD Database so had to follow instructions here to set
@@ -37,6 +44,7 @@ Example .yaml input file (input.yaml by default):
     pair-net model: none
     solvate system: yes
     simulation type: standard
+    number of seeds: 1
     simulation time (ns): 0.01
     timestep (fs): 1.0
     temperature (K): 300.0
@@ -58,7 +66,10 @@ Input options:
     solvate system:         "yes" will fill box with explicit waters, modelled
                             by default using TIP3P
 
-    simulation type:        "standard" is the only option for now
+    simulation type:        "standard" or "multi-conformer" for now
+
+    number of seeds:        ensemble approach - run this number of simulations
+                            starting from different conformers
 
     simulation time (ns):   total simulation time in ns
 

@@ -17,6 +17,12 @@ class GetStructure():
         conformer_generator = ConformerGenerator()
         conformers = conformer_generator.generate(ligand)
 
+        # TODO: why no "MODEL" or "ENDMDL"?
+        '''
+        with MoleculeWriter("input.pdb") as mol_writer:
+            for c in conformers:
+                mol_writer.write(c.molecule)
+        '''
         with MoleculeWriter("input.pdb") as mol_writer:
             mol_writer.write(conformers[0].molecule)
 

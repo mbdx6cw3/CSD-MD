@@ -41,7 +41,9 @@ def main():
     simulation.setup()
 
     print("Performing MD simulation...")
-    simulation.standard()
+    for i in range(simulation.n_seed):
+        print(f"Simulation number: {simulation.n_seed}")
+        simulation.simulate()
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
