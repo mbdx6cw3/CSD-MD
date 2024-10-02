@@ -27,7 +27,8 @@ def main():
 
     if simulation.system_type != "protein":
         print("Retrieving CSD entry...")
-        structure.ligand(simulation.CSD)
+        n_conf = structure.ligand(simulation.CSD, simulation)
+        print(f"Using {n_conf} conformer(s)...")
 
     if simulation.system_type != "ligand":
         print("Retrieving PDB entry...")
@@ -41,9 +42,7 @@ def main():
     simulation.setup()
 
     print("Performing MD simulation...")
-    for i in range(simulation.n_seed):
-        print(f"Simulation number: {simulation.n_seed}")
-        simulation.simulate()
+    simulation.simulate(n_conf)
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':

@@ -2,7 +2,7 @@ class GetStructure():
     def __init__(self):
         pass
 
-    def ligand(self, identifier):
+    def ligand(self, identifier, simulation):
         """
 
         :return:
@@ -15,40 +15,54 @@ class GetStructure():
         entry = csd_reader.entry(identifier)
         ligand = entry.molecule
         conformer_generator = ConformerGenerator()
+        if simulation.simulation_type != "multi-conformer":
+            conformer_generator.settings.max_conformers = 1
         conformers = conformer_generator.generate(ligand)
 
-        # TODO: why no "MODEL" or "ENDMDL"?
-        '''
-        with MoleculeWriter("input.pdb") as mol_writer:
-            for c in conformers:
+        # TODO: CCDC MoleculeWriter does not print MODEL or ENDMDL
+        # TODO: these keywords are used to look at different structures of the same molecule
+        # TODO: at present PDBFile sees only one structure with n_conf aspirins
+        # TODO: this problem will go away with conversion functions
+        i_conf = 0
+        for c in conformers:
+            with MoleculeWriter(f"{simulation.input_dir}/ligand_{i_conf}.pdb") as mol_writer:
                 mol_writer.write(c.molecule)
-        '''
-        with MoleculeWriter("input.pdb") as mol_writer:
+            i_conf = i_conf + 1
+        n_conf = i_conf
+
+        #with MoleculeWriter("input.pdb") as mol_writer:
+        #    mol_writer.write(conformers[0].molecule)
+
+        with MoleculeWriter(f"{simulation.input_dir}/ligand.sdf") as mol_writer:
             mol_writer.write(conformers[0].molecule)
 
-        with MoleculeWriter("ligand.sdf") as mol_writer:
-            mol_writer.write(conformers[0].molecule)
-
-        return None
+        return n_conf
 
 
-    def protein(self, identifier):
+    def protein(self, identifier, simulation):
         """
 
         :return:
         """
         from pdbfixer import PDBFixer
         from openmm import app
-
         fixer = PDBFixer(pdbid=identifier)
+        print("Fixing PDB file...")
         fixer.findMissingResidues()
         fixer.findNonstandardResidues()
         fixer.replaceNonstandardResidues()
-        fixer.removeHeterogens(True)
+        fixer.removeHeterogens(False)
         fixer.findMissingAtoms()
         fixer.addMissingAtoms()
         fixer.addMissingHydrogens(7.0)
-        app.PDBFile.writeFile(fixer.topology, fixer.positions, open('input.pdb', 'w'))
+        # TODO: add solvent box here instead of using OpenMM modeller?
+        app.PDBFile.writeFile(fixer.topology, fixer.positions,
+                              open(f"{simulation.input_dir}/protein.pdb", "w"))
         return None
+
+
+    def docking(self):
+        return None
+
 
 
