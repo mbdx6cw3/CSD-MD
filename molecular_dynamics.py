@@ -168,9 +168,9 @@ class MolecularDynamics():
         # Simulation object ties together topology, system and integrator
         # and maintains list of reporter objects that record or analyse data
         self.simulation = app.Simulation(self.topology, system, integrator)
-        self.simulation.reporters.append(app.PDBReporter("output.pdb", 100,
+        self.simulation.reporters.append(app.PDBReporter("output.pdb", 1000,
             enforcePeriodicBox=True))
-        self.simulation.reporters.append(app.StateDataReporter(stdout, 100, step=True,
+        self.simulation.reporters.append(app.StateDataReporter(stdout, 1000, step=True,
             potentialEnergy=True, temperature=True))
 
         return None
@@ -228,7 +228,11 @@ class MolecularDynamics():
 
             # TODO: loop over simulations (for multi-conformer simulation)
             for i_conf in range(n_conf):
-                print(f"Simulation number: {i_conf}")
+                # TODO: ***CONVERSION FUNCTIONS***
+                # TODO: This is where the protein coordinates are read in.
+                # TODO: http://docs.openmm.org/latest/api-python/generated/openmm.app.pdbfile.PDBFile.html
+                # TODO: this is where the protein topology is defined.
+                print(f"Conformer number: {i_conf}")
                 pdb = app.PDBFile(f"{self.input_dir}/ligand_{i_conf}.pdb")
                 modeller = app.Modeller(self.topology, pdb.positions)
 
