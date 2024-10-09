@@ -14,6 +14,7 @@ class GetStructure():
         csd_reader = EntryReader("CSD")
         entry = csd_reader.entry(identifier)
         ligand = entry.molecule
+        simulation.smiles = ligand.smiles
         conformer_generator = ConformerGenerator()
         if simulation.simulation_type != "multi-conformer":
             conformer_generator.settings.max_conformers = 1
@@ -28,15 +29,9 @@ class GetStructure():
             with MoleculeWriter(f"{simulation.input_dir}/ligand_{i_conf}.pdb") as mol_writer:
                 mol_writer.write(c.molecule)
             i_conf = i_conf + 1
-        n_conf = i_conf
+        simulation.n_conf = i_conf
 
-        #with MoleculeWriter("input.pdb") as mol_writer:
-        #    mol_writer.write(conformers[0].molecule)
-
-        with MoleculeWriter(f"{simulation.input_dir}/ligand.sdf") as mol_writer:
-            mol_writer.write(conformers[0].molecule)
-
-        return n_conf
+        return None
 
 
     def protein(self, identifier, simulation):

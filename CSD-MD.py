@@ -27,12 +27,14 @@ def main():
 
     if simulation.system_type != "protein":
         print("Retrieving CSD entry...")
-        n_conf = structure.ligand(simulation.CSD, simulation)
-        print(f"Using {n_conf} conformer(s)...")
+        structure.ligand(simulation.CSD, simulation)
+        print(f"SMILES notation: {simulation.smiles} ")
+        print(f"Using {simulation.n_conf} conformer(s)...")
 
     if simulation.system_type != "ligand":
         print("Retrieving PDB entry...")
-        structure.protein(simulation.PDB)
+        structure.protein(simulation.PDB, simulation)
+        simulation.n_conf = 1
 
     if simulation.system_type == "ligand-protein":
         # TODO: protein-ligand docking option here.
@@ -42,7 +44,7 @@ def main():
     simulation.setup()
 
     print("Performing MD simulation...")
-    simulation.simulate(n_conf)
+    simulation.simulate()
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':

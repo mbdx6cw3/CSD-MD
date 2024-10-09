@@ -42,10 +42,10 @@ Example .yaml input file (input.yaml by default):
     CSD identifier: ACSALA
     PDB identifier: 3I40
     pair-net model: none
-    solvate system: yes
-    simulation type: standard
-    number of seeds: 1
-    simulation time (ns): 0.01
+    pair-net library path: ./
+    solvate system: no
+    simulation type: multi-conformer
+    simulation time (ns): 0.400
     timestep (fs): 1.0
     temperature (K): 300.0
     ensemble: NVT
@@ -63,15 +63,15 @@ Input options:
                             "pair-net_models" directory. "none" will default
                             to Amber potential. More MM potentials to be added
 
-    solvate system:         "yes" will fill box with explicit waters, modelled
-                            by default using TIP3P
+    pair-net library path:  specifies the location of the library of pair-net
+                            trained models
+
+    solvate system:         "yes" will fill box with explicit water molecules,
+                            modelled by default using TIP3P
 
     simulation type:        "standard" or "multi-conformer" for now
 
-    number of seeds:        ensemble approach - run this number of simulations
-                            starting from different conformers
-
-    simulation time (ns):   total simulation time in ns
+    simulation time (ns):   total simulation time (per conformer) in nanoseconds
 
     timestep (fs):          integration timestep in femtoseconds
 

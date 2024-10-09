@@ -68,38 +68,44 @@ class MolecularDynamics():
         from openmm import LangevinMiddleIntegrator, CustomExternalForce, app, unit
         from openmm import NonbondedForce, HarmonicBondForce, HarmonicAngleForce, PeriodicTorsionForce
         from openmmforcefields.generators import GAFFTemplateGenerator
-        from openff.toolkit.topology import Molecule
+        from openff.toolkit.topology import Molecule, Topology
 
-        # setup force field
+        # define force field
         self.forcefield = app.ForceField("amber14-all.xml", "amber14/tip3p.xml")
 
-        print("Reading structure from SDF/PDB file...")
+        #print("Reading structure from SDF/PDB file...")
+        print("Creating topology...")
+
         # non-standard residue needs to generate a force field template
         if self.system_type == "ligand":
             # TODO: ***CONVERSION FUNCTIONS***
-            # TODO: This is where the molecule connectivity is read in.
-            # TODO: https://docs.openforcefield.org/projects/toolkit/en/stable/api/generated/openff.toolkit.topology.Molecule.html
-            ligand = Molecule.from_file(f"{self.input_dir}/ligand.sdf")
-            # TODO: Molecule is a class from OpenFF-toolkits.
+            # TODO: This is where the ligand coordinates are read in and used to generate a topology.
+            # TODO: http://docs.openmm.org/latest/api-python/generated/openmm.app.pdbfile.PDBFile.html
             # TODO: ***CONVERSION FUNCTIONS***
-            self.topology = ligand.to_topology().to_openmm()
+            pdb = app.PDBFile(f"{self.input_dir}/ligand_0.pdb")
+            ligand = Molecule.from_smiles(self.smiles)
+            topology = Topology.from_openmm(pdb.topology, unique_molecules=[ligand])
+            self.topology = topology.to_openmm()
             gaff = GAFFTemplateGenerator(molecules=ligand)
             self.forcefield.registerTemplateGenerator(gaff.generator)
             self.topology.setUnitCellDimensions([2.5]*3)
             self.ligand_n_atom = ligand.n_atoms
         elif self.system_type == "protein":
             # TODO: ***CONVERSION FUNCTIONS***
-            # TODO: This is where the protein coordinates are read in.
+            # TODO: This is where the protein coordinates are read in and used to generate a topology.
             # TODO: http://docs.openmm.org/latest/api-python/generated/openmm.app.pdbfile.PDBFile.html
-            # TODO: this is where the protein topology is defined.
+            # TODO: ***CONVERSION FUNCTIONS***
             pdb = app.PDBFile(f"{self.input_dir}/protein.pdb")
             self.topology = pdb.topology
         elif self.system_type == "ligand-protein":
             pass
 
-        #modeller = app.Modeller(topology, pdb.positions)
         cutoff = 1.0*unit.nanometer
 
+        # construct OpenMM system object using topology and other MD run parameters
+        system = self.forcefield.createSystem(self.topology,
+                nonbondedCutoff=cutoff, nonbondedMethod=app.PME)
+        '''
         # construct OpenMM system object using topology and other MD run parameters
         if self.system_type == "protein":
             system = self.forcefield.createSystem(self.topology,
@@ -109,6 +115,10 @@ class MolecularDynamics():
             # charges assigned using am1bcc
             # bug in OpenFF Toolkit means this doesn't always work first time, so in a loop for now
             # TODO: sorting OpenEye license will probably avoid this problem
+            system = self.forcefield.createSystem(self.topology,
+                                                  nonbondedCutoff=cutoff,
+                                                  nonbondedMethod=app.PME)
+
             while True:
                 try:
                     # construct OpenMM system object using topology and other MD run parameters
@@ -119,9 +129,11 @@ class MolecularDynamics():
                 except:
                     print("Charge assignment failed...")
                     pass
+            '''
 
         # if using pair-net must set all intramolecular ligand interactions to zero
         if self.pairnet != "none":
+
             # exclude all non-bonded interactions
             nb = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
             for i in range(self.ligand_n_atom):
@@ -168,15 +180,15 @@ class MolecularDynamics():
         # Simulation object ties together topology, system and integrator
         # and maintains list of reporter objects that record or analyse data
         self.simulation = app.Simulation(self.topology, system, integrator)
-        self.simulation.reporters.append(app.PDBReporter("output.pdb", 1000,
+        self.simulation.reporters.append(app.PDBReporter("output.pdb", 100,
             enforcePeriodicBox=True))
-        self.simulation.reporters.append(app.StateDataReporter(stdout, 1000, step=True,
+        self.simulation.reporters.append(app.StateDataReporter(stdout, 100, step=True,
             potentialEnergy=True, temperature=True))
 
         return None
 
 
-    def simulate(self, n_conf):
+    def simulate(self):
         """
 
         :param simulation:
@@ -192,12 +204,6 @@ class MolecularDynamics():
 
         time = self.time*unit.nanoseconds
         n_steps = int(time/self.dt)
-
-        if self.system_type == "protein":
-            print("Minimising initial protein structure...")
-            self.simulation.minimizeEnergy()
-            if self.ensemble == "NVT":
-                self.simulation.context.setVelocitiesToTemperature(self.temp)
 
         if self.system_type == "ligand":
 
@@ -221,17 +227,17 @@ class MolecularDynamics():
                     csd2pairnet = mapping[:, 0]
                     pairnet2csd = mapping[:, 1]
 
-            # open files for PairNetOps compatible datasets
-            f1 = open(f"./md_output/coords.txt", 'w')
-            f2 = open(f"./md_output/forces.txt", 'w')
-            f3 = open(f"./md_output/energies.txt", 'w')
+        # open files for PairNetOps compatible datasets
+        f1 = open(f"./md_output/coords.txt", 'w')
+        f2 = open(f"./md_output/forces.txt", 'w')
+        f3 = open(f"./md_output/energies.txt", 'w')
 
-            # TODO: loop over simulations (for multi-conformer simulation)
-            for i_conf in range(n_conf):
-                # TODO: ***CONVERSION FUNCTIONS***
-                # TODO: This is where the protein coordinates are read in.
-                # TODO: http://docs.openmm.org/latest/api-python/generated/openmm.app.pdbfile.PDBFile.html
-                # TODO: this is where the protein topology is defined.
+        # loop over conformers
+        for i_conf in range(self.n_conf):
+            # TODO: ***CONVERSION FUNCTIONS***
+            # TODO: This is where the coordinates are read in.
+            # TODO: http://docs.openmm.org/latest/api-python/generated/openmm.app.pdbfile.PDBFile.html
+            if self.system_type == "ligand":
                 print(f"Conformer number: {i_conf}")
                 pdb = app.PDBFile(f"{self.input_dir}/ligand_{i_conf}.pdb")
                 modeller = app.Modeller(self.topology, pdb.positions)
@@ -240,50 +246,57 @@ class MolecularDynamics():
                     modeller.addSolvent(self.forcefield)
                     n_solvent = len(modeller.getPositions()) - len(pdb.positions)
                     print(f"{n_solvent} solvent molecules added...")
-
                 self.simulation.context.setPositions(modeller.positions)
-                if self.ensemble == "NVT":
-                    self.simulation.context.setVelocitiesToTemperature(self.temp)
 
-                for i in range(n_steps):
+            if self.system_type == "protein":
+                pdb = app.PDBFile(f"{self.input_dir}/protein.pdb")
+                modeller = app.Modeller(self.topology, pdb.positions)
+                self.simulation.context.setPositions(modeller.positions)
+                print("Minimising initial protein structure...")
+                self.simulation.minimizeEnergy()
 
-                    if self.pairnet != "none":
+            if self.ensemble == "NVT":
+                self.simulation.context.setVelocitiesToTemperature(self.temp)
+
+            for i in range(n_steps):
+
+                if self.pairnet != "none":
+                    coords = self.simulation.context.getState(getPositions=True). \
+                        getPositions(asNumpy=True).value_in_unit(unit.angstrom)
+                    if map:
+                        coords = coords[csd2pairnet] # map CSD to pairnet atom order
+                    if (i % 1000) == 0:
+                        tf.keras.backend.clear_session()
+                    prediction = model.predict_on_batch([np.reshape(coords[:self.ligand_n_atom]
+                        / unit.angstrom, (1, -1, 3)), np.reshape(atoms, (1, -1))])
+                    ML_forces = prediction[0]*unit.kilocalories_per_mole/unit.angstrom
+                    ML_forces = np.reshape(ML_forces, (-1, 3))
+                    if map:
+                        ML_forces = ML_forces[pairnet2csd] # map pairnet back to CSD
+                    for j in range(self.ligand_n_atom):
+                        self.ml_force.setParticleParameters(j, j, ML_forces[j])
+                    self.ml_force.updateParametersInContext(self.simulation.context)
+
+                self.simulation.step(1)
+
+                # every 1000 steps save data for PairNetOps compatible dataset
+                if self.system_type == "ligand":
+                    if (i % 1000) == 0:
                         coords = self.simulation.context.getState(getPositions=True). \
                             getPositions(asNumpy=True).value_in_unit(unit.angstrom)
-                        if map:
-                            coords = coords[csd2pairnet] # map CSD to pairnet atom order
-                        if (i % 1000) == 0:
-                            tf.keras.backend.clear_session()
-                        prediction = model.predict_on_batch([np.reshape(coords[:self.ligand_n_atom]
-                            / unit.angstrom, (1, -1, 3)), np.reshape(atoms, (1, -1))])
-                        ML_forces = prediction[0]*unit.kilocalories_per_mole/unit.angstrom
-                        ML_forces = np.reshape(ML_forces, (-1, 3))
-                        if map:
-                            ML_forces = ML_forces[pairnet2csd] # map pairnet back to CSD
-                        for j in range(self.ligand_n_atom):
-                            self.ml_force.setParticleParameters(j, j, ML_forces[j])
-                        self.ml_force.updateParametersInContext(self.simulation.context)
+                        forces = self.simulation.context.getState(getForces=True). \
+                            getForces(asNumpy=True).in_units_of(
+                            unit.kilocalories_per_mole / unit.angstrom)
 
-                    self.simulation.step(1)
+                        if self.pairnet != "none":
+                            energy = prediction[1][0][0]
+                        else:
+                            state = self.simulation.context.getState(getEnergy=True)
+                            energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
 
-                    # every 1000 steps save data for PairNetOps compatible dataset
-                    if self.system_type == "ligand":
-                        if (i % 1000) == 0:
-                            coords = self.simulation.context.getState(getPositions=True). \
-                                getPositions(asNumpy=True).value_in_unit(unit.angstrom)
-                            forces = self.simulation.context.getState(getForces=True). \
-                                getForces(asNumpy=True).in_units_of(
-                                unit.kilocalories_per_mole / unit.angstrom)
-
-                            if self.pairnet != "none":
-                                energy = prediction[1][0][0]
-                            else:
-                                state = self.simulation.context.getState(getEnergy=True)
-                                energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
-
-                            np.savetxt(f1, coords[:self.ligand_n_atom])
-                            np.savetxt(f2, forces[:self.ligand_n_atom])
-                            f3.write(f"{energy}\n")
+                        np.savetxt(f1, coords[:self.ligand_n_atom])
+                        np.savetxt(f2, forces[:self.ligand_n_atom])
+                        f3.write(f"{energy}\n")
 
         if self.system_type == "ligand":
             f1.close()
