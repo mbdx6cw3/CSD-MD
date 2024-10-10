@@ -84,12 +84,20 @@ class MolecularDynamics():
             # TODO: ***CONVERSION FUNCTIONS***
             pdb = app.PDBFile(f"{self.input_dir}/ligand_0.pdb")
             ligand = Molecule.from_smiles(self.smiles)
+            self.ligand_n_atom = ligand.n_atoms
             topology = Topology.from_openmm(pdb.topology, unique_molecules=[ligand])
             self.topology = topology.to_openmm()
             gaff = GAFFTemplateGenerator(molecules=ligand)
             self.forcefield.registerTemplateGenerator(gaff.generator)
-            self.topology.setUnitCellDimensions([2.5]*3)
-            self.ligand_n_atom = ligand.n_atoms
+            if self.solvate:
+                modeller = app.Modeller(self.topology, pdb.positions)
+                modeller.addSolvent(self.forcefield, numAdded=500)
+                n_solvent = len(modeller.getPositions()) - len(pdb.positions)
+                print(f"Adding {int(n_solvent / 3)} solvent molecules...")
+            else:
+                self.topology.setUnitCellDimensions([2.5] * 3)
+                modeller = app.Modeller(self.topology, pdb.positions)
+
         elif self.system_type == "protein":
             # TODO: ***CONVERSION FUNCTIONS***
             # TODO: This is where the protein coordinates are read in and used to generate a topology.
@@ -97,39 +105,15 @@ class MolecularDynamics():
             # TODO: ***CONVERSION FUNCTIONS***
             pdb = app.PDBFile(f"{self.input_dir}/protein.pdb")
             self.topology = pdb.topology
+            modeller = app.Modeller(self.topology, pdb.positions)
         elif self.system_type == "ligand-protein":
             pass
 
         cutoff = 1.0*unit.nanometer
 
         # construct OpenMM system object using topology and other MD run parameters
-        system = self.forcefield.createSystem(self.topology,
+        system = self.forcefield.createSystem(modeller.topology,
                 nonbondedCutoff=cutoff, nonbondedMethod=app.PME)
-        '''
-        # construct OpenMM system object using topology and other MD run parameters
-        if self.system_type == "protein":
-            system = self.forcefield.createSystem(self.topology,
-                nonbondedCutoff=cutoff, nonbondedMethod=app.PME)
-
-        elif self.system_type == "ligand":
-            # charges assigned using am1bcc
-            # bug in OpenFF Toolkit means this doesn't always work first time, so in a loop for now
-            # TODO: sorting OpenEye license will probably avoid this problem
-            system = self.forcefield.createSystem(self.topology,
-                                                  nonbondedCutoff=cutoff,
-                                                  nonbondedMethod=app.PME)
-
-            while True:
-                try:
-                    # construct OpenMM system object using topology and other MD run parameters
-                    system = self.forcefield.createSystem(self.topology,
-                        nonbondedCutoff=cutoff, nonbondedMethod=app.PME)
-                    print("Charge assignment succeeded...")
-                    break
-                except:
-                    print("Charge assignment failed...")
-                    pass
-            '''
 
         # if using pair-net must set all intramolecular ligand interactions to zero
         if self.pairnet != "none":
@@ -179,11 +163,13 @@ class MolecularDynamics():
         # setup simulation and output
         # Simulation object ties together topology, system and integrator
         # and maintains list of reporter objects that record or analyse data
-        self.simulation = app.Simulation(self.topology, system, integrator)
+        self.simulation = app.Simulation(modeller.topology, system, integrator)
+        self.simulation.context.setPositions(modeller.positions)
+        self.simulation.context.setVelocitiesToTemperature(self.temp)
         self.simulation.reporters.append(app.PDBReporter("output.pdb", 100,
             enforcePeriodicBox=True))
-        self.simulation.reporters.append(app.StateDataReporter(stdout, 100, step=True,
-            potentialEnergy=True, temperature=True))
+        self.simulation.reporters.append(app.StateDataReporter(stdout, 100,
+            step=True, potentialEnergy=True, temperature=True))
 
         return None
 
@@ -211,8 +197,7 @@ class MolecularDynamics():
                 input_dir = f"{self.pairnet_lib}models/{self.pairnet}"
                 isExist = os.path.exists(input_dir)
                 if not isExist:
-                    print(
-                        "ERROR. Previously trained model could not be located.")
+                    print("ERROR. Previously trained model could not be located.")
                     exit()
                 model, atoms = self.load_pairnet(input_dir)
                 # this step is necessary because pairnet predicts forces for an arbitrary atom ordering
@@ -238,15 +223,17 @@ class MolecularDynamics():
             # TODO: This is where the coordinates are read in.
             # TODO: http://docs.openmm.org/latest/api-python/generated/openmm.app.pdbfile.PDBFile.html
             if self.system_type == "ligand":
-                print(f"Conformer number: {i_conf}")
-                pdb = app.PDBFile(f"{self.input_dir}/ligand_{i_conf}.pdb")
-                modeller = app.Modeller(self.topology, pdb.positions)
+                # for first conformer use initial coords and vels defined in setup
+                # for all other conformers reset coords/vels including solvent
+                if i_conf > 0:
+                    print(f"Conformer number: {i_conf}")
+                    pdb = app.PDBFile(f"{self.input_dir}/ligand_{i_conf}.pdb")
+                    modeller = app.Modeller(self.topology, pdb.positions)
 
-                if self.solvate:
-                    modeller.addSolvent(self.forcefield)
-                    n_solvent = len(modeller.getPositions()) - len(pdb.positions)
-                    print(f"{n_solvent} solvent molecules added...")
-                self.simulation.context.setPositions(modeller.positions)
+                    if self.solvate:
+                        modeller.addSolvent(self.forcefield, numAdded=500)
+                    self.simulation.context.setPositions(modeller.positions)
+                    self.simulation.context.setVelocitiesToTemperature(self.temp)
 
             if self.system_type == "protein":
                 pdb = app.PDBFile(f"{self.input_dir}/protein.pdb")
@@ -322,4 +309,3 @@ class MolecularDynamics():
         model.summary()
         model.load_weights(f"{input_dir}/trained_model/best_ever_model").expect_partial()
         return model, atoms
-
