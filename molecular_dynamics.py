@@ -1,5 +1,8 @@
 class MolecularDynamics():
 
+    import warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+
     def __init__(self):
         pass
 
@@ -37,9 +40,8 @@ class MolecularDynamics():
         self.temp = md_params.get("temperature (K)")
         self.ensemble = md_params.get("ensemble")
         self.dt = md_params.get("timestep (fs)")
-        self.pairnet = md_params.get("pair-net model")
+        self.pairnet_path = md_params.get("pair-net model path")
         self.time = md_params.get("simulation time (ns)")
-        self.pairnet_lib = md_params.get("pair-net library path")
         self.simulation_type = md_params.get("simulation type")
 
         self.input_dir = "md_input"
@@ -69,6 +71,8 @@ class MolecularDynamics():
         from openmm import NonbondedForce, HarmonicBondForce, HarmonicAngleForce, PeriodicTorsionForce
         from openmmforcefields.generators import GAFFTemplateGenerator
         from openff.toolkit.topology import Molecule, Topology
+        import warnings
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
 
         # define force field
         self.forcefield = app.ForceField("amber14-all.xml", "amber14/tip3p.xml")
@@ -112,7 +116,7 @@ class MolecularDynamics():
                 nonbondedCutoff=cutoff, nonbondedMethod=app.PME)
 
         # if using pair-net must set all intramolecular ligand interactions to zero
-        if self.pairnet != "none":
+        if self.pairnet_path != "none":
 
             # exclude all non-bonded interactions
             nb = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
@@ -188,22 +192,25 @@ class MolecularDynamics():
 
         if self.system_type == "ligand":
 
-            if self.pairnet != "none":
-                input_dir = f"{self.pairnet_lib}models/{self.pairnet}"
+            if self.pairnet_path != "none":
+                input_dir = f"{self.pairnet_path}trained_model"
+                print(f"Using pairnet model: {input_dir}")
                 isExist = os.path.exists(input_dir)
                 if not isExist:
                     print("ERROR. Previously trained model could not be located.")
                     exit()
                 model, atoms = self.load_pairnet(input_dir)
-                # this step is necessary because pairnet predicts forces for an arbitrary atom ordering
-                # TODO: Ideally would not need a manually created mapping file.
-                # TODO: For now, can remap atoms in this way because we only have models for a few molecules anyway.
-                # TODO: This can be made more efficient if either:
-                # TODO: 1) atom ordering of CCDC outputs can be changed
-                # TODO: 2) mapping of topology/structure prior to starting simulation
-                map = True
-                if map:
-                    mapping = np.loadtxt(f"{input_dir}/atom_mapping.dat", dtype=int)
+                map = False
+                isExist = os.path.exists(f"{self.pairnet_path}atom_mapping.dat")
+                if isExist:
+                    map = True
+                    # this step is necessary because pairnet models have a specific (arbitrary) atom ordering
+                    # TODO: Ideally would not need a manually created mapping file.
+                    # TODO: For now, can remap atoms in this way because we only have models for a few molecules anyway.
+                    # TODO: This can be made more efficient if either:
+                    # TODO: 1) atom ordering of CCDC outputs can be changed
+                    # TODO: 2) mapping of topology/structure prior to starting simulation
+                    mapping = np.loadtxt(f"{self.pairnet_path}atom_mapping.dat", dtype=int)
                     csd2pairnet = mapping[:, 0]
                     pairnet2csd = mapping[:, 1]
 
@@ -242,7 +249,7 @@ class MolecularDynamics():
 
             for i in range(n_steps):
 
-                if self.pairnet != "none":
+                if self.pairnet_path != "none":
 
                     # this stops us running out of memory
                     if (i % 1000) == 0:
@@ -276,7 +283,7 @@ class MolecularDynamics():
                             getForces(asNumpy=True).in_units_of(
                             unit.kilocalories_per_mole / unit.angstrom)
 
-                        if self.pairnet != "none":
+                        if self.pairnet_path != "none":
                             energy = prediction[1][0][0]
                         else:
                             state = self.simulation.context.getState(getEnergy=True)
@@ -302,22 +309,19 @@ class MolecularDynamics():
         from network import Network
         import numpy as np
         print("Loading a previously trained model...")
-        atoms = np.loadtxt(f"{input_dir}/trained_model/atoms.txt", dtype=np.float32).reshape(-1)
-        ann_params = Network.read_params(f"{input_dir}/trained_model/ann_params.txt")
-        prescale = np.loadtxt(f"{input_dir}/trained_model/prescale.txt", dtype=np.float64).reshape(-1)
+        atoms = np.loadtxt(f"{input_dir}/atoms.txt", dtype=np.float32).reshape(-1)
+        ann_params = Network.read_params(f"{input_dir}/ann_params.txt")
+        prescale = np.loadtxt(f"{input_dir}/prescale.txt", dtype=np.float64).reshape(-1)
         network = Network()
         model = network.build(len(atoms), ann_params, prescale)
         model.summary()
-        model.load_weights(f"{input_dir}/trained_model/best_ever_model").expect_partial()
+        model.load_weights(f"{input_dir}/best_ever_model").expect_partial()
         return model, atoms
 
 
     def get_pairnet_prediction(self, model, atoms, coords):
         import numpy as np
-        #import os
         from openmm import unit
-        #os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-        #import tensorflow as tf
 
         prediction = model.predict_on_batch([np.reshape(coords[:self.ligand_n_atom]
             / unit.angstrom, (1, -1, 3)), np.reshape(atoms, (1, -1))])
