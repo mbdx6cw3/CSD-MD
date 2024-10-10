@@ -79,9 +79,7 @@ class MolecularDynamics():
         # non-standard residue needs to generate a force field template
         if self.system_type == "ligand":
             # TODO: ***CONVERSION FUNCTIONS***
-            # TODO: This is where the ligand coordinates are read in and used to generate a topology.
-            # TODO: http://docs.openmm.org/latest/api-python/generated/openmm.app.pdbfile.PDBFile.html
-            # TODO: ***CONVERSION FUNCTIONS***
+            # TODO: This is where the coordinates are read in.
             pdb = app.PDBFile(f"{self.input_dir}/ligand_0.pdb")
             ligand = Molecule.from_smiles(self.smiles)
             self.ligand_n_atom = ligand.n_atoms
@@ -100,9 +98,7 @@ class MolecularDynamics():
 
         elif self.system_type == "protein":
             # TODO: ***CONVERSION FUNCTIONS***
-            # TODO: This is where the protein coordinates are read in and used to generate a topology.
-            # TODO: http://docs.openmm.org/latest/api-python/generated/openmm.app.pdbfile.PDBFile.html
-            # TODO: ***CONVERSION FUNCTIONS***
+            # TODO: This is where the coordinates are read in.
             pdb = app.PDBFile(f"{self.input_dir}/protein.pdb")
             self.topology = pdb.topology
             modeller = app.Modeller(self.topology, pdb.positions)
@@ -170,7 +166,6 @@ class MolecularDynamics():
             enforcePeriodicBox=True))
         self.simulation.reporters.append(app.StateDataReporter(stdout, 100,
             step=True, potentialEnergy=True, temperature=True))
-
         return None
 
 
@@ -219,13 +214,13 @@ class MolecularDynamics():
 
         # loop over conformers
         for i_conf in range(self.n_conf):
-            # TODO: ***CONVERSION FUNCTIONS***
-            # TODO: This is where the coordinates are read in.
-            # TODO: http://docs.openmm.org/latest/api-python/generated/openmm.app.pdbfile.PDBFile.html
+
             if self.system_type == "ligand":
                 # for first conformer use initial coords and vels defined in setup
                 # for all other conformers reset coords/vels including solvent
                 if i_conf > 0:
+                    # TODO: ***CONVERSION FUNCTIONS***
+                    # TODO: This is where the coordinates are read in.
                     print(f"Conformer number: {i_conf}")
                     pdb = app.PDBFile(f"{self.input_dir}/ligand_{i_conf}.pdb")
                     modeller = app.Modeller(self.topology, pdb.positions)
@@ -248,18 +243,24 @@ class MolecularDynamics():
             for i in range(n_steps):
 
                 if self.pairnet != "none":
-                    coords = self.simulation.context.getState(getPositions=True). \
-                        getPositions(asNumpy=True).value_in_unit(unit.angstrom)
-                    if map:
-                        coords = coords[csd2pairnet] # map CSD to pairnet atom order
+
+                    # this stops us running out of memory
                     if (i % 1000) == 0:
                         tf.keras.backend.clear_session()
-                    prediction = model.predict_on_batch([np.reshape(coords[:self.ligand_n_atom]
-                        / unit.angstrom, (1, -1, 3)), np.reshape(atoms, (1, -1))])
-                    ML_forces = prediction[0]*unit.kilocalories_per_mole/unit.angstrom
+
+                    coords = self.simulation.context.getState(getPositions=True). \
+                        getPositions(asNumpy=True).value_in_unit(unit.angstrom)
+
+                    if map:
+                        coords = coords[csd2pairnet] # map CSD to pairnet atom order
+
+                    prediction = self.get_pairnet_prediction(model, atoms, coords)
+                    ML_forces = prediction[0] * unit.kilocalories_per_mole / unit.angstrom
                     ML_forces = np.reshape(ML_forces, (-1, 3))
+
                     if map:
                         ML_forces = ML_forces[pairnet2csd] # map pairnet back to CSD
+
                     for j in range(self.ligand_n_atom):
                         self.ml_force.setParticleParameters(j, j, ML_forces[j])
                     self.ml_force.updateParametersInContext(self.simulation.context)
@@ -309,3 +310,16 @@ class MolecularDynamics():
         model.summary()
         model.load_weights(f"{input_dir}/trained_model/best_ever_model").expect_partial()
         return model, atoms
+
+
+    def get_pairnet_prediction(self, model, atoms, coords):
+        import numpy as np
+        #import os
+        from openmm import unit
+        #os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+        #import tensorflow as tf
+
+        prediction = model.predict_on_batch([np.reshape(coords[:self.ligand_n_atom]
+            / unit.angstrom, (1, -1, 3)), np.reshape(atoms, (1, -1))])
+
+        return prediction
