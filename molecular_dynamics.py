@@ -66,7 +66,6 @@ class MolecularDynamics():
 
         :returns: Simulation object
         """
-        from sys import stdout
         from openmm import LangevinMiddleIntegrator, CustomExternalForce, app, unit
         from openmm import NonbondedForce, HarmonicBondForce, HarmonicAngleForce, PeriodicTorsionForce
         from openmmforcefields.generators import GAFFTemplateGenerator
@@ -168,8 +167,11 @@ class MolecularDynamics():
         self.simulation.context.setVelocitiesToTemperature(self.temp)
         self.simulation.reporters.append(app.PDBReporter("output.pdb", 100,
             enforcePeriodicBox=True))
+        # TODO: replace below with CSDDataReporter?
+        '''
         self.simulation.reporters.append(app.StateDataReporter(stdout, 100,
             step=True, potentialEnergy=True, temperature=True))
+        '''
         return None
 
 
@@ -219,6 +221,8 @@ class MolecularDynamics():
         f2 = open(f"./md_output/forces.txt", 'w')
         f3 = open(f"./md_output/energies.txt", 'w')
 
+        print("Performing MD simulation...")
+        print("time (ps) | PE (kcal/mol)")
         # loop over conformers
         for i_conf in range(self.n_conf):
 
@@ -276,7 +280,7 @@ class MolecularDynamics():
 
                 # every 1000 steps save data for PairNetOps compatible dataset
                 if self.system_type == "ligand":
-                    if (i % 1000) == 0:
+                    if (i % 100) == 0:
                         coords = self.simulation.context.getState(getPositions=True). \
                             getPositions(asNumpy=True).value_in_unit(unit.angstrom)
                         forces = self.simulation.context.getState(getForces=True). \
@@ -284,7 +288,7 @@ class MolecularDynamics():
                             unit.kilocalories_per_mole / unit.angstrom)
 
                         if self.pairnet_path != "none":
-                            energy = prediction[1][0][0]
+                            energy = prediction[2][0][0]
                         else:
                             state = self.simulation.context.getState(getEnergy=True)
                             energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
@@ -293,6 +297,35 @@ class MolecularDynamics():
                         np.savetxt(f2, forces[:self.ligand_n_atom])
                         f3.write(f"{energy}\n")
 
+                    if (i % 100) == 0:
+                        coords = self.simulation.context.getState(getPositions=True). \
+                            getPositions(asNumpy=True).value_in_unit(unit.angstrom)
+                        forces = self.simulation.context.getState(getForces=True). \
+                            getForces(asNumpy=True).in_units_of(
+                            unit.kilocalories_per_mole / unit.angstrom)
+
+                        if self.pairnet_path != "none":
+                            energy = prediction[2][0][0]
+                        else:
+                            state = self.simulation.context.getState(getEnergy=True)
+                            energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
+
+                        np.savetxt(f1, coords[:self.ligand_n_atom])
+                        np.savetxt(f2, forces[:self.ligand_n_atom])
+                        f3.write(f"{energy}\n")
+
+                # TODO: CSD data reporter output
+                if (i % 100) == 0:
+                    if self.pairnet_path != "none":
+                        energy = prediction[2][0][0]
+                    else:
+                        state = self.simulation.context.getState(getEnergy=True)
+                        energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
+                    time = self.simulation.context.getState().getTime().\
+                        value_in_unit(unit.picoseconds)
+                    print(f"{time:9.1f} | {energy:13.2f}")
+
+        print("MD simulation has completed.")
         if self.system_type == "ligand":
             f1.close()
             f2.close()
@@ -327,3 +360,4 @@ class MolecularDynamics():
             / unit.angstrom, (1, -1, 3)), np.reshape(atoms, (1, -1))])
 
         return prediction
+

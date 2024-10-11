@@ -43,10 +43,8 @@ def main():
     print("Setting up MD simulation...")
     simulation.setup()
 
-    print("Performing MD simulation...")
     simulation.simulate()
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     main()
-
