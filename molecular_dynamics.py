@@ -61,10 +61,7 @@ class MolecularDynamics():
 
     def setup(self):
         """Set up an MD simulation.
-
-        :param pdb: The input coordinates.
-
-        :returns: Simulation object
+        ...
         """
         from openmm import LangevinMiddleIntegrator, CustomExternalForce, app, unit
         from openmm import NonbondedForce, HarmonicBondForce, HarmonicAngleForce, PeriodicTorsionForce
@@ -114,43 +111,44 @@ class MolecularDynamics():
         system = self.forcefield.createSystem(modeller.topology,
                 nonbondedCutoff=cutoff, nonbondedMethod=app.PME)
 
-        # if using pair-net must set all intramolecular ligand interactions to zero
-        if self.pairnet_path != "none":
+        if self.system_type == "ligand":
+            # if using pair-net must set all intramolecular ligand interactions to zero
+            if self.pairnet_path != "none":
 
-            # exclude all non-bonded interactions
-            nb = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
-            for i in range(self.ligand_n_atom):
-                for j in range(i):
-                    nb.addException(i, j, 0, 1, 0, replace=True)
+                # exclude all non-bonded interactions
+                nb = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
+                for i in range(self.ligand_n_atom):
+                    for j in range(i):
+                        nb.addException(i, j, 0, 1, 0, replace=True)
 
-            # set all bond force constants to zero
-            bond_force = [f for f in system.getForces() if isinstance(f, HarmonicBondForce)][0]
-            for i in range(bond_force.getNumBonds()):
-                p1, p2, length, k = bond_force.getBondParameters(i)
-                bond_force.setBondParameters(i, p1, p2, length, 0)
+                # set all bond force constants to zero
+                bond_force = [f for f in system.getForces() if isinstance(f, HarmonicBondForce)][0]
+                for i in range(bond_force.getNumBonds()):
+                    p1, p2, length, k = bond_force.getBondParameters(i)
+                    bond_force.setBondParameters(i, p1, p2, length, 0)
 
-            # set all angles force constants to zero
-            angle_force = [f for f in system.getForces() if isinstance(f, HarmonicAngleForce)][0]
-            for i in range(angle_force.getNumAngles()):
-                p1, p2, p3, angle, k = angle_force.getAngleParameters(i)
-                angle_force.setAngleParameters(i, p1, p2, p3, angle, 0)
+                # set all angles force constants to zero
+                angle_force = [f for f in system.getForces() if isinstance(f, HarmonicAngleForce)][0]
+                for i in range(angle_force.getNumAngles()):
+                    p1, p2, p3, angle, k = angle_force.getAngleParameters(i)
+                    angle_force.setAngleParameters(i, p1, p2, p3, angle, 0)
 
-            # set all dihedral force constants/barrier heights to zero
-            torsion_force = [f for f in system.getForces() if isinstance(f, PeriodicTorsionForce)][0]
-            for i in range(torsion_force.getNumTorsions()):
-                p1, p2, p3, p4, n, phase, k = torsion_force.getTorsionParameters(i)
-                torsion_force.setTorsionParameters(i, p1, p2, p3, p4, n, phase, 0)
+                # set all dihedral force constants/barrier heights to zero
+                torsion_force = [f for f in system.getForces() if isinstance(f, PeriodicTorsionForce)][0]
+                for i in range(torsion_force.getNumTorsions()):
+                    p1, p2, p3, p4, n, phase, k = torsion_force.getTorsionParameters(i)
+                    torsion_force.setTorsionParameters(i, p1, p2, p3, p4, n, phase, 0)
 
-            # create custom force for PairNet predictions
-            self.ml_force = CustomExternalForce("-fx*x-fy*y-fz*z")
-            system.addForce(self.ml_force)
-            self.ml_force.addPerParticleParameter("fx")
-            self.ml_force.addPerParticleParameter("fy")
-            self.ml_force.addPerParticleParameter("fz")
-            for j in range(ligand.n_atoms):
-                self.ml_force.addParticle(j, (0, 0, 0))
-        else:
-            self.ml_force = None
+                # create custom force for PairNet predictions
+                self.ml_force = CustomExternalForce("-fx*x-fy*y-fz*z")
+                system.addForce(self.ml_force)
+                self.ml_force.addPerParticleParameter("fx")
+                self.ml_force.addPerParticleParameter("fy")
+                self.ml_force.addPerParticleParameter("fz")
+                for j in range(ligand.n_atoms):
+                    self.ml_force.addParticle(j, (0, 0, 0))
+            else:
+                self.ml_force = None
 
         # setup integrator
         self.temp = self.temp*unit.kelvin
@@ -165,7 +163,7 @@ class MolecularDynamics():
         self.simulation = app.Simulation(modeller.topology, system, integrator)
         self.simulation.context.setPositions(modeller.positions)
         self.simulation.context.setVelocitiesToTemperature(self.temp)
-        self.simulation.reporters.append(app.PDBReporter("output.pdb", 100,
+        self.simulation.reporters.append(app.PDBReporter("output.pdb", 1000,
             enforcePeriodicBox=True))
         # TODO: replace below with CSDDataReporter?
         '''
@@ -178,7 +176,7 @@ class MolecularDynamics():
     def simulate(self):
         """
 
-        :param simulation:
+        :param:
         :return:
         """
         from openmm import unit, app
@@ -190,7 +188,7 @@ class MolecularDynamics():
         tf.get_logger().setLevel('ERROR')
 
         time = self.time*unit.nanoseconds
-        n_steps = int(time/self.dt)
+        n_steps = int(time/self.dt)+1
 
         if self.system_type == "ligand":
 
@@ -221,18 +219,16 @@ class MolecularDynamics():
         f2 = open(f"./md_output/forces.txt", 'w')
         f3 = open(f"./md_output/energies.txt", 'w')
 
-        print("Performing MD simulation...")
-        print("time (ps) | PE (kcal/mol)")
         # loop over conformers
         for i_conf in range(self.n_conf):
 
             if self.system_type == "ligand":
                 # for first conformer use initial coords and vels defined in setup
                 # for all other conformers reset coords/vels including solvent
+                print(f"Conformer number: {i_conf+1}")
                 if i_conf > 0:
                     # TODO: ***CONVERSION FUNCTIONS***
                     # TODO: This is where the coordinates are read in.
-                    print(f"Conformer number: {i_conf}")
                     pdb = app.PDBFile(f"{self.input_dir}/ligand_{i_conf}.pdb")
                     modeller = app.Modeller(self.topology, pdb.positions)
 
@@ -251,79 +247,71 @@ class MolecularDynamics():
             if self.ensemble == "NVT":
                 self.simulation.context.setVelocitiesToTemperature(self.temp)
 
+            print("Performing MD simulation...")
+            print("Time (ps) | PE (kcal/mol)")
             for i in range(n_steps):
 
-                if self.pairnet_path != "none":
+                if self.system_type == "ligand":
 
-                    # this stops us running out of memory
-                    if (i % 1000) == 0:
-                        tf.keras.backend.clear_session()
+                    if self.pairnet_path != "none":
 
-                    coords = self.simulation.context.getState(getPositions=True). \
-                        getPositions(asNumpy=True).value_in_unit(unit.angstrom)
+                        # this stops us running out of memory
+                        if (i % 1000) == 0:
+                            tf.keras.backend.clear_session()
 
-                    if map:
-                        coords = coords[csd2pairnet] # map CSD to pairnet atom order
+                        coords = self.simulation.context.getState(getPositions=True). \
+                            getPositions(asNumpy=True).value_in_unit(unit.angstrom)
 
-                    prediction = self.get_pairnet_prediction(model, atoms, coords)
-                    ML_forces = prediction[0] * unit.kilocalories_per_mole / unit.angstrom
-                    ML_forces = np.reshape(ML_forces, (-1, 3))
+                        if map:
+                            coords = coords[csd2pairnet] # map CSD to pairnet atom order
 
-                    if map:
-                        ML_forces = ML_forces[pairnet2csd] # map pairnet back to CSD
+                        prediction = self.get_pairnet_prediction(model, atoms, coords)
+                        ML_forces = prediction[0] * unit.kilocalories_per_mole / unit.angstrom
+                        ML_forces = np.reshape(ML_forces, (-1, 3))
 
-                    for j in range(self.ligand_n_atom):
-                        self.ml_force.setParticleParameters(j, j, ML_forces[j])
-                    self.ml_force.updateParametersInContext(self.simulation.context)
+                        if map:
+                            ML_forces = ML_forces[pairnet2csd] # map pairnet back to CSD
 
-                self.simulation.step(1)
+                        for j in range(self.ligand_n_atom):
+                            self.ml_force.setParticleParameters(j, j, ML_forces[j])
+                        self.ml_force.updateParametersInContext(self.simulation.context)
 
                 # every 1000 steps save data for PairNetOps compatible dataset
                 if self.system_type == "ligand":
                     if (i % 100) == 0:
-                        coords = self.simulation.context.getState(getPositions=True). \
-                            getPositions(asNumpy=True).value_in_unit(unit.angstrom)
-                        forces = self.simulation.context.getState(getForces=True). \
+                        coords = self.simulation.context.getState(
+                            getPositions=True). \
+                            getPositions(asNumpy=True).value_in_unit(
+                            unit.angstrom)
+                        forces = self.simulation.context.getState(
+                            getForces=True). \
                             getForces(asNumpy=True).in_units_of(
                             unit.kilocalories_per_mole / unit.angstrom)
 
                         if self.pairnet_path != "none":
                             energy = prediction[2][0][0]
                         else:
-                            state = self.simulation.context.getState(getEnergy=True)
+                            state = self.simulation.context.getState(
+                                getEnergy=True)
                             energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
 
                         np.savetxt(f1, coords[:self.ligand_n_atom])
                         np.savetxt(f2, forces[:self.ligand_n_atom])
                         f3.write(f"{energy}\n")
 
-                    if (i % 100) == 0:
-                        coords = self.simulation.context.getState(getPositions=True). \
-                            getPositions(asNumpy=True).value_in_unit(unit.angstrom)
-                        forces = self.simulation.context.getState(getForces=True). \
-                            getForces(asNumpy=True).in_units_of(
-                            unit.kilocalories_per_mole / unit.angstrom)
-
-                        if self.pairnet_path != "none":
-                            energy = prediction[2][0][0]
-                        else:
-                            state = self.simulation.context.getState(getEnergy=True)
-                            energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
-
-                        np.savetxt(f1, coords[:self.ligand_n_atom])
-                        np.savetxt(f2, forces[:self.ligand_n_atom])
-                        f3.write(f"{energy}\n")
-
-                # TODO: CSD data reporter output
-                if (i % 100) == 0:
-                    if self.pairnet_path != "none":
+                # TODO: CSDDataReporter output?
+                if ((i+1) % 100) == 0:
+                    if self.system_type == "ligand" and self.pairnet_path != "none":
                         energy = prediction[2][0][0]
                     else:
                         state = self.simulation.context.getState(getEnergy=True)
                         energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
-                    time = self.simulation.context.getState().getTime().\
+                    time = self.simulation.context.getState().getTime(). \
                         value_in_unit(unit.picoseconds)
                     print(f"{time:9.1f} | {energy:13.2f}")
+
+                # advance trajectory one timestep
+                self.simulation.step(1)
 
         print("MD simulation has completed.")
         if self.system_type == "ligand":
@@ -336,8 +324,9 @@ class MolecularDynamics():
     def load_pairnet(self, input_dir):
         """
 
-        :param simulation:
-        :return:
+        :param input_dir: path to pairnet model
+        :returns: model - pairnet model
+                  atoms - list of atoms
         """
         from network import Network
         import numpy as np

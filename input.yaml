@@ -5,7 +5,7 @@ PDB identifier: 3I40
 pair-net model path: none
 solvate system: no
 simulation type: standard
-simulation time (ns): 0.001
+simulation time (ns): 0.010
 timestep (fs): 1.0
 temperature (K): 300.0
 ensemble: NVT
