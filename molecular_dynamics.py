@@ -81,7 +81,8 @@ class MolecularDynamics():
             # TODO: ***CONVERSION FUNCTIONS***
             # TODO: This is where the coordinates are read in.
             pdb = app.PDBFile(f"{self.input_dir}/ligand_0.pdb")
-            ligand = Molecule.from_smiles(self.smiles)
+            #self.smiles = "CC(C)CC1=CC=C(C=C1)C(C)C(=O)O"
+            ligand = Molecule.from_smiles(self.smiles, allow_undefined_stereo=True) # do we even need SMILES?
             self.ligand_n_atom = ligand.n_atoms
             topology = Topology.from_openmm(pdb.topology, unique_molecules=[ligand])
             self.topology = topology.to_openmm()
