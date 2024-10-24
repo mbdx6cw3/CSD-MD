@@ -80,8 +80,7 @@ class MolecularDynamics():
         if self.system_type == "ligand":
             # TODO: ***CONVERSION FUNCTIONS***
             # TODO: This is where the coordinates are read in.
-            pdb = app.PDBFile(f"{self.input_dir}/ligand_0.pdb")
-            #self.smiles = "CC(C)CC1=CC=C(C=C1)C(C)C(=O)O"
+            pdb = self.get_pdb(f"{self.input_dir}/ligand_0.pdb")
             ligand = Molecule.from_smiles(self.smiles, allow_undefined_stereo=True) # do we even need SMILES?
             self.ligand_n_atom = ligand.n_atoms
             topology = Topology.from_openmm(pdb.topology, unique_molecules=[ligand])
@@ -100,7 +99,7 @@ class MolecularDynamics():
         elif self.system_type == "protein":
             # TODO: ***CONVERSION FUNCTIONS***
             # TODO: This is where the coordinates are read in.
-            pdb = app.PDBFile(f"{self.input_dir}/protein.pdb")
+            pdb = self.get_pdb(f"{self.input_dir}/protein.pdb")
             self.topology = pdb.topology
             modeller = app.Modeller(self.topology, pdb.positions)
         elif self.system_type == "ligand-protein":
@@ -228,9 +227,7 @@ class MolecularDynamics():
                 # for all other conformers reset coords/vels including solvent
                 print(f"Conformer number: {i_conf+1}")
                 if i_conf > 0:
-                    # TODO: ***CONVERSION FUNCTIONS***
-                    # TODO: This is where the coordinates are read in.
-                    pdb = app.PDBFile(f"{self.input_dir}/ligand_{i_conf}.pdb")
+                    pdb = self.get_pdb(f"{self.input_dir}/ligand_{i_conf}.pdb")
                     modeller = app.Modeller(self.topology, pdb.positions)
 
                     if self.solvate:
@@ -239,7 +236,7 @@ class MolecularDynamics():
                     self.simulation.context.setVelocitiesToTemperature(self.temp)
 
             if self.system_type == "protein":
-                pdb = app.PDBFile(f"{self.input_dir}/protein.pdb")
+                pdb = self.get_pdb(f"{self.input_dir}/protein.pdb")
                 modeller = app.Modeller(self.topology, pdb.positions)
                 self.simulation.context.setPositions(modeller.positions)
                 print("Minimising initial protein structure...")
@@ -350,4 +347,12 @@ class MolecularDynamics():
             / unit.angstrom, (1, -1, 3)), np.reshape(atoms, (1, -1))])
 
         return prediction
+
+
+    def get_pdb(self, filename):
+        from openmm import app
+        # TODO: ***CONVERSION FUNCTIONS***
+        # TODO: This is where the coordinates are read in.
+        pdb = app.PDBFile(filename)
+        return pdb
 

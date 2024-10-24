@@ -18,6 +18,11 @@ class GetStructure():
         conformer_generator = ConformerGenerator()
         if simulation.simulation_type != "multi-conformer":
             conformer_generator.settings.max_conformers = 1
+        # TODO: deprecated???
+        # conformer_generator.settings.normalised_score_threshold = 0.1
+        # print(conformer_generator.settings.normalised_score_threshold)
+
+        print("Generating conformers...")
         conformers = conformer_generator.generate(ligand)
 
         # TODO: CCDC MoleculeWriter does not print MODEL or ENDMDL
@@ -25,10 +30,15 @@ class GetStructure():
         # TODO: at present PDBFile sees only one structure with n_conf aspirins
         # TODO: this problem will go away with conversion functions
         i_conf = 0
+        #print(f"Number of rotamers sampled: {conformers.n_rotamers_sampled}")
+        print("Conformer | Probability Score | RMSD wrt Input")
+        print("----------------------------------------------")
         for c in conformers:
             with MoleculeWriter(f"{simulation.input_dir}/ligand_{i_conf}.pdb") as mol_writer:
                 mol_writer.write(c.molecule)
+                print(f"{i_conf:9d} | {c.normalised_score:17.3f} | {c.rmsd():14.3f}")
             i_conf = i_conf + 1
+        print("----------------------------------------------")
         simulation.n_conf = i_conf
 
         return None

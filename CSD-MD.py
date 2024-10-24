@@ -26,7 +26,7 @@ def main():
     simulation.read_inputs()
 
     if simulation.system_type != "protein":
-        print("Retrieving CSD entry...")
+        print(f"Retrieving CSD entry for {simulation.CSD}...")
         structure.ligand(simulation.CSD, simulation)
         print(f"SMILES notation: {simulation.smiles} ")
         print(f"Using {simulation.n_conf} conformer(s)...")
