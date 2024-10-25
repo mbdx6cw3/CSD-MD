@@ -8,20 +8,23 @@ https://www.ccdc.cam.ac.uk/support-and-resources/csdsdownloads/
 
 Quicker, easier and more robust using mamba instead of conda:
 Mamba installation instructions: https://github.com/conda-forge/miniforge
-wget https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh
-bash Mambaforge-Linux-x86_64.sh ---> yes to initialise at the end (add executables to the path)
+wget "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+bash Miniforge3-$(uname)-$(uname -m).sh ---> yes to initialise at the end (add executables to the path)
 
 Example environment setup - on local machine:
-mamba create -n ccdc python=3.9
-mamba activate ccdc
+mamba create -n csd-md python=3.9
+mamba activate csd-md
 mamba install openmm openmmforcefields pyyaml tensorflow=2.12 pdbfixer
 python -m pip install --extra-index-url https://pip.ccdc.cam.ac.uk/ csd-python-api
 
-Example environment setup - on the CSF:
-mamba create -n ccdc python=3.9
-mamba activate ccdc
-mamba install -c /opt/apps/apps/binapps/ccdc-csds/2024.1/ccdc_conda_channel_py39 csd-python-api
-mamba install openmm openmmforcefields pyyaml pdbfixer
+Example environment setup that works on CSF3:
+module load apps/binapps/anaconda3/2022.10
+conda config --set solver libmamba
+conda create -n csd-md python=3.9
+conda activate csd-md
+conda install -c /opt/apps/apps/binapps/ccdc-csds/2024.1/ccdc_conda_channel_py39 Pillow six lxml numpy matplotlib
+conda install -c /opt/apps/apps/binapps/ccdc-csds/2024.1/ccdc_conda_channel_py39 csd-python-api
+conda install openmm openmmforcefields pyyaml pdbfixer
 export CCDC_LICENSING_CONFIGURATION='lf-server;http://login1:8090'
 
 Notes:
@@ -41,11 +44,10 @@ Example .yaml input file (input.yaml by default):
     system type: ligand
     CSD identifier: ACSALA
     PDB identifier: 3I40
-    pair-net model: none
-    pair-net library path: ./
+    pair-net model path: none
     solvate system: no
-    simulation type: multi-conformer
-    simulation time (ns): 0.400
+    simulation type: standard
+    simulation time (ns): 0.010
     timestep (fs): 1.0
     temperature (K): 300.0
     ensemble: NVT
@@ -59,12 +61,10 @@ Input options:
 
     PDB identifier:         four letter identifier associated with PDB entry
 
-    pair-net model:         name of trained pair-net model to search for in
-                            "pair-net_models" directory. "none" will default
-                            to Amber potential. More MM potentials to be added
-
-    pair-net library path:  specifies the location of the library of pair-net
-                            trained models
+    pair-net model path:    name of trained pair-net model to search for in
+                            "pair-net_models" directory. If set to "none"
+                             will default to MM simulation using the Amber14 potential.
+                             Water is always TIP3P.
 
     solvate system:         "yes" will fill box with explicit water molecules,
                             modelled by default using TIP3P
@@ -104,3 +104,6 @@ References:
     Atomistic Simulations of Flexible Molecules using Conformationally
     Generalisable Machine Learned Potentials, 2024, Chem. Sci., 15: 12780-12795.
 
+[6] RA Sykes, NT Johnson, CJ Kingsbury et al, What Has Scripting Ever Done For Us?
+    The CSD Python Application Programming Interface (API), J. Appl. Cryst., 2024,
+    57, 1235-1250.
