@@ -30,7 +30,6 @@ class GetStructure():
         # TODO: at present PDBFile sees only one structure with n_conf aspirins
         # TODO: this problem will go away with conversion functions
         i_conf = 0
-        #print(f"Number of rotamers sampled: {conformers.n_rotamers_sampled}")
         print("Conformer | Probability Score | RMSD wrt Input")
         print("----------------------------------------------")
         for c in conformers:

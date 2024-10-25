@@ -65,29 +65,47 @@ class MolecularDynamics():
         """
         from openmm import LangevinMiddleIntegrator, CustomExternalForce, app, unit
         from openmm import NonbondedForce, HarmonicBondForce, HarmonicAngleForce, PeriodicTorsionForce
-        from openmmforcefields.generators import GAFFTemplateGenerator
-        from openff.toolkit.topology import Molecule, Topology
+        from openmmforcefields.generators import GAFFTemplateGenerator, SystemGenerator
+        from openff.toolkit.topology import Molecule
         import warnings
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-        # define force field
-        self.forcefield = app.ForceField("amber14-all.xml", "amber14/tip3p.xml")
-
-        #print("Reading structure from SDF/PDB file...")
         print("Creating topology...")
+        forcefield_kwargs = {'constraints': app.HBonds, 'rigidWater': True,
+                             'removeCMMotion': False,
+                             'hydrogenMass': 4 * unit.amu}
+        forcefield_kwargs = {'rigidWater': True}
+        system_generator = SystemGenerator(
+            forcefields=['amber/ff14SB.xml', 'amber/tip3p_standard.xml'],
+            small_molecule_forcefield='gaff-2.11',
+            forcefield_kwargs=forcefield_kwargs, cache='db.json')
 
         # non-standard residue needs to generate a force field template
         if self.system_type == "ligand":
-            # TODO: ***CONVERSION FUNCTIONS***
-            # TODO: This is where the coordinates are read in.
+            pdb = self.get_pdb(f"{self.input_dir}/ligand_0.pdb")
+            ligand = Molecule.from_smiles("CC(=O)Oc1ccccc1C(O)=O", allow_undefined_stereo=False)
+            self.topology = pdb.topology
+            self.ligand_n_atom = ligand.n_atoms
+            molecules = ligand
+
+            '''
+            OLD METHOD
             pdb = self.get_pdb(f"{self.input_dir}/ligand_0.pdb")
             ligand = Molecule.from_smiles(self.smiles, allow_undefined_stereo=True) # do we even need SMILES?
             self.ligand_n_atom = ligand.n_atoms
             topology = Topology.from_openmm(pdb.topology, unique_molecules=[ligand])
             self.topology = topology.to_openmm()
-            gaff = GAFFTemplateGenerator(molecules=ligand)
+            gaff = GAFFTemplateGenerator(molecules=ligand) # TODO, possible to add FF here?
+            gaff = GAFFTemplateGenerator(molecules=molecules, forcefield='gaff-2.11')
             self.forcefield.registerTemplateGenerator(gaff.generator)
+            pdb = self.get_pdb(f"{self.input_dir}/ligand_0.pdb")
+            self.topology = pdb.topology
+            '''
+
             if self.solvate:
+                self.forcefield = app.ForceField("amber14-all.xml", "amber14/tip3p.xml")
+                gaff = GAFFTemplateGenerator(molecules=ligand)
+                self.forcefield.registerTemplateGenerator(gaff.generator)
                 modeller = app.Modeller(self.topology, pdb.positions)
                 modeller.addSolvent(self.forcefield, numAdded=500)
                 n_solvent = len(modeller.getPositions()) - len(pdb.positions)
@@ -97,19 +115,17 @@ class MolecularDynamics():
                 modeller = app.Modeller(self.topology, pdb.positions)
 
         elif self.system_type == "protein":
-            # TODO: ***CONVERSION FUNCTIONS***
-            # TODO: This is where the coordinates are read in.
             pdb = self.get_pdb(f"{self.input_dir}/protein.pdb")
             self.topology = pdb.topology
             modeller = app.Modeller(self.topology, pdb.positions)
+            molecules = None
+
         elif self.system_type == "ligand-protein":
             pass
 
-        cutoff = 1.0*unit.nanometer
-
         # construct OpenMM system object using topology and other MD run parameters
-        system = self.forcefield.createSystem(modeller.topology,
-                nonbondedCutoff=cutoff, nonbondedMethod=app.PME)
+        system = system_generator.create_system(modeller.topology,
+            molecules=molecules)
 
         if self.system_type == "ligand":
             # if using pair-net must set all intramolecular ligand interactions to zero

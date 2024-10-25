@@ -48,3 +48,19 @@ def main():
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     main()
+
+
+def test():
+    import ccdc
+    from openff.toolkit.topology import Molecule
+    from openmm import app
+    from openmmforcefields.generators import GAFFTemplateGenerator
+    ligand = Molecule.from_smiles("CC(=O)Oc1ccccc1C(O)=O",
+                                  allow_undefined_stereo=True)
+    gaff = GAFFTemplateGenerator(molecules=ligand)
+    forcefield = app.ForceField("amber14-all.xml")
+    forcefield.registerTemplateGenerator(gaff.generator)
+    pdb = app.PDBFile("ligand_0.pdb")
+    system = forcefield.createSystem(pdb.topology)
+    print("success!")
+    exit()
