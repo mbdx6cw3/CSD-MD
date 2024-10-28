@@ -1,12 +1,13 @@
 name: demonstration
 system type: ligand
-CSD identifier: ACSALA
+CSD identifier: COTYOA01
 PDB identifier: 3I40
 analyse torsions: False
 simulation type: standard
 pair-net model path: none
+partial charges: from_file
 solvate system: no
 ensemble: NVT
 temperature (K): 300.0
-simulation time (ns): 0.001
+simulation time (ns): 0.0001
 timestep (fs): 1.0

@@ -54,6 +54,7 @@ class MolecularDynamics():
         self.time = md_params.get("simulation time (ns)")
         self.simulation_type = md_params.get("simulation type")
         self.analyse_torsions = md_params.get("analyse torsions")
+        self.charges = md_params.get("partial charges")
 
         self.input_dir = "md_input"
         isExist = os.path.exists(self.input_dir)
@@ -104,11 +105,11 @@ class MolecularDynamics():
         # create topology for non-standard residue from SMILES
         if self.ligand:
             print("Creating topology...")
-            ligand = Molecule.from_smiles("CC(=O)Oc1ccccc1C(O)=O", allow_undefined_stereo=False)
+            ligand = Molecule.from_smiles(self.smiles, allow_undefined_stereo=True)
             self.ligand_n_atom = ligand.n_atoms
             molecules = ligand
             if not self.solvate:
-                self.topology.setUnitCellDimensions([2.5] * 3)
+                self.topology.setUnitCellDimensions([3.0]*3)
         else:
             molecules = None
 
@@ -143,7 +144,8 @@ class MolecularDynamics():
             else:
                 print("Using MM force field (GAFF2) for ligand...")
                 self.ml_force = None
-            self.get_MM_charges(system)
+                self.assign_charges(system)
+                print(self.mm_charges)
 
         # setup integrator
         self.temp = self.temp*unit.kelvin
@@ -208,8 +210,6 @@ class MolecularDynamics():
                     csd2pairnet = mapping[:, 0]
                     pairnet2csd = mapping[:, 1]
 
-            else:
-                charges = self.mm_charges
 
         # open files for PairNetOps compatible datasets
         f1 = open(f"./md_output/coords.txt", "w")
@@ -284,7 +284,7 @@ class MolecularDynamics():
                         else:
                             state = self.simulation.context.getState(getEnergy=True)
                             energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
-
+                            charges = self.mm_charges
 
                         np.savetxt(f1, coords[:self.ligand_n_atom])
                         np.savetxt(f2, forces[:self.ligand_n_atom])
@@ -310,6 +310,7 @@ class MolecularDynamics():
             f1.close()
             f2.close()
             f3.close()
+            f4.close()
         return None
 
 
@@ -401,13 +402,16 @@ class MolecularDynamics():
         return None
 
 
-    def get_MM_charges(self, system):
+    def assign_charges(self, system):
         from openmm import NonbondedForce, unit
         import numpy as np
         self.mm_charges = np.zeros(self.ligand_n_atom)
-        nb = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
-        for i in range(system.getNumParticles()):
-            charge, sigma, epsilon = nb.getParticleParameters(i)
-            self.mm_charges[i] = charge.value_in_unit(unit.elementary_charge)
+        if self.charges == "am1-bcc":
+            nb = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
+            for i in range(system.getNumParticles()):
+                charge, sigma, epsilon = nb.getParticleParameters(i)
+                self.mm_charges[i] = charge.value_in_unit(unit.elementary_charge)
+        elif self.charges == "from_file":
+            self.mm_charges = np.loadtxt("charges.txt")
         return self.mm_charges
 
