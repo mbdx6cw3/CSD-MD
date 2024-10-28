@@ -7,7 +7,7 @@ class GetStructure():
 
         :return:
         """
-        from ccdc.conformer import ConformerGenerator
+        from ccdc.conformer import ConformerGenerator, GeometryAnalyser
         from ccdc.io import MoleculeWriter
         from ccdc.io import EntryReader
 
@@ -18,27 +18,37 @@ class GetStructure():
         conformer_generator = ConformerGenerator()
         if simulation.simulation_type != "multi-conformer":
             conformer_generator.settings.max_conformers = 1
-        # TODO: deprecated???
-        # conformer_generator.settings.normalised_score_threshold = 0.1
-        # print(conformer_generator.settings.normalised_score_threshold)
 
         print("Generating conformers...")
         conformers = conformer_generator.generate(ligand)
+        simulation.n_conf = len(conformers)
+        for i_conf, c in enumerate(conformers):
+            with MoleculeWriter(f"{simulation.input_dir}/ligand_{i_conf}.pdb") as mol_writer:
+                mol_writer.write(c.molecule)
+
 
         # TODO: CCDC MoleculeWriter does not print MODEL or ENDMDL
         # TODO: these keywords are used to look at different structures of the same molecule
         # TODO: at present PDBFile sees only one structure with n_conf aspirins
         # TODO: this problem will go away with conversion functions
-        i_conf = 0
-        print("Conformer | Probability Score | RMSD wrt Input")
-        print("----------------------------------------------")
-        for c in conformers:
-            with MoleculeWriter(f"{simulation.input_dir}/ligand_{i_conf}.pdb") as mol_writer:
-                mol_writer.write(c.molecule)
-                print(f"{i_conf:9d} | {c.normalised_score:17.3f} | {c.rmsd():14.3f}")
-            i_conf = i_conf + 1
-        print("----------------------------------------------")
-        simulation.n_conf = i_conf
+        if simulation.analyse_torsions:
+            print("Torsion Angle | Atom Indices")
+            engine = GeometryAnalyser()
+            geometry_analysed_mol = engine.analyse_molecule(conformers[0].molecule)
+            for count, tor in enumerate(geometry_analysed_mol.analysed_torsions):
+                print(f"{count:12}: {(', '.join(label for label in tor.atom_labels))}")
+            print()
+            print("Conformer | Probability Score | RMSD wrt Input | Initial Torsion Angles")
+            print("-----------------------------------------------------------------------")
+
+            for i_conf, c in enumerate(conformers):
+                engine = GeometryAnalyser()
+                all_torsions = engine.analyse_molecule(c.molecule).analysed_torsions
+                torsions = []
+                for count, tor in enumerate(all_torsions):
+                    torsions.append(round(tor.value, 1))
+                print(f"{i_conf:9d} | {c.normalised_score:17.3f} | {c.rmsd():14.3f} | {(' '.join(str(x) for x in torsions))}")
+            print("----------------------------------------------")
 
         return None
 
@@ -67,6 +77,4 @@ class GetStructure():
 
     def docking(self):
         return None
-
-
 

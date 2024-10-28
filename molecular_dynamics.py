@@ -27,12 +27,22 @@ class MolecularDynamics():
             with open(input_file, 'r') as input:
                 md_params = yaml.full_load(input)
 
-        self.system_type = md_params.get("system type")
-        if self.system_type != "ligand" and self.system_type != "protein" and \
-            self.system_type != "ligand-protein":
+        system_type = md_params.get("system type")
+        if system_type != "ligand" and system_type != "protein" and \
+            system_type != "ligand-protein":
             print("ERROR - system type not allowed.")
             print("Allowed system types: ligand, protein or ligand-protein")
             exit()
+
+        if system_type == "ligand" or system_type == "ligand-protein":
+            self.ligand = True
+        else:
+            self.ligand = False
+
+        if system_type == "protein" or system_type == "ligand-protein":
+            self.protein = True
+        else:
+            self.protein = False
 
         self.CSD = md_params.get("CSD identifier")
         self.PDB = md_params.get("PDB identifier")
@@ -43,6 +53,7 @@ class MolecularDynamics():
         self.pairnet_path = md_params.get("pair-net model path")
         self.time = md_params.get("simulation time (ns)")
         self.simulation_type = md_params.get("simulation type")
+        self.analyse_torsions = md_params.get("analyse torsions")
 
         self.input_dir = "md_input"
         isExist = os.path.exists(self.input_dir)
@@ -63,108 +74,76 @@ class MolecularDynamics():
         """Set up an MD simulation.
         ...
         """
-        from openmm import LangevinMiddleIntegrator, CustomExternalForce, app, unit
-        from openmm import NonbondedForce, HarmonicBondForce, HarmonicAngleForce, PeriodicTorsionForce
-        from openmmforcefields.generators import GAFFTemplateGenerator, SystemGenerator
+        from openmm import LangevinMiddleIntegrator, app, unit
+        from openmmforcefields.generators import SystemGenerator
         from openff.toolkit.topology import Molecule
         import warnings
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-        print("Creating topology...")
-        forcefield_kwargs = {'constraints': app.HBonds, 'rigidWater': True,
-                             'removeCMMotion': False,
-                             'hydrogenMass': 4 * unit.amu}
-        forcefield_kwargs = {'rigidWater': True}
-        system_generator = SystemGenerator(
-            forcefields=['amber/ff14SB.xml', 'amber/tip3p_standard.xml'],
-            small_molecule_forcefield='gaff-2.11',
-            forcefield_kwargs=forcefield_kwargs, cache='db.json')
+        # set name of input file for this system
+        if self.ligand and not self.protein:
+            input_file = f"{self.input_dir}/ligand_0.pdb"
 
-        # non-standard residue needs to generate a force field template
-        if self.system_type == "ligand":
-            pdb = self.get_pdb(f"{self.input_dir}/ligand_0.pdb")
+        if self.protein and not self.ligand:
+            input_file = f"{self.input_dir}/protein.pdb"
+
+        if self.ligand and self.protein:
+            input_file = f"{self.input_dir}/protein-ligand.pdb"
+
+        # retrieve pdb file
+        pdb = self.get_pdb(input_file)
+
+        # define force field
+        std_ff = ["amber/ff14SB.xml", "amber/tip3p_standard.xml"]
+        small_mol_ff = "gaff-2.11"
+
+        # get structure and topology from pdb file
+        self.topology = pdb.topology
+        self.positions = pdb.positions
+
+        # create topology for non-standard residue from SMILES
+        if self.ligand:
+            print("Creating topology...")
             ligand = Molecule.from_smiles("CC(=O)Oc1ccccc1C(O)=O", allow_undefined_stereo=False)
-            self.topology = pdb.topology
             self.ligand_n_atom = ligand.n_atoms
             molecules = ligand
-
-            '''
-            OLD METHOD
-            pdb = self.get_pdb(f"{self.input_dir}/ligand_0.pdb")
-            ligand = Molecule.from_smiles(self.smiles, allow_undefined_stereo=True) # do we even need SMILES?
-            self.ligand_n_atom = ligand.n_atoms
-            topology = Topology.from_openmm(pdb.topology, unique_molecules=[ligand])
-            self.topology = topology.to_openmm()
-            gaff = GAFFTemplateGenerator(molecules=ligand) # TODO, possible to add FF here?
-            gaff = GAFFTemplateGenerator(molecules=molecules, forcefield='gaff-2.11')
-            self.forcefield.registerTemplateGenerator(gaff.generator)
-            pdb = self.get_pdb(f"{self.input_dir}/ligand_0.pdb")
-            self.topology = pdb.topology
-            '''
-
-            if self.solvate:
-                self.forcefield = app.ForceField("amber14-all.xml", "amber14/tip3p.xml")
-                gaff = GAFFTemplateGenerator(molecules=ligand)
-                self.forcefield.registerTemplateGenerator(gaff.generator)
-                modeller = app.Modeller(self.topology, pdb.positions)
-                modeller.addSolvent(self.forcefield, numAdded=500)
-                n_solvent = len(modeller.getPositions()) - len(pdb.positions)
-                print(f"Adding {int(n_solvent / 3)} solvent molecules...")
-            else:
+            if not self.solvate:
                 self.topology.setUnitCellDimensions([2.5] * 3)
-                modeller = app.Modeller(self.topology, pdb.positions)
-
-        elif self.system_type == "protein":
-            pdb = self.get_pdb(f"{self.input_dir}/protein.pdb")
-            self.topology = pdb.topology
-            modeller = app.Modeller(self.topology, pdb.positions)
+        else:
             molecules = None
 
-        elif self.system_type == "ligand-protein":
-            pass
+        # add water to system using PDBfixer
+        if self.solvate:
+            solvated_pdb = self.solvate_system(input_file)
+            n_solvent = len(solvated_pdb.positions) - len(pdb.positions)
+            self.topology = solvated_pdb.topology
+            self.positions = solvated_pdb.positions
+            print(f"Adding {int(n_solvent / 3)} solvent molecules...")
 
-        # construct OpenMM system object using topology and other MD run parameters
-        system = system_generator.create_system(modeller.topology,
-            molecules=molecules)
+        # construct OpenMM system object using topology and forcefield
+        system_generator = SystemGenerator(forcefields=std_ff,
+            small_molecule_forcefield=small_mol_ff,
+            forcefield_kwargs={"rigidWater": True}, cache="db.json")
+        system = system_generator.create_system(self.topology, molecules=molecules)
 
-        if self.system_type == "ligand":
-            # if using pair-net must set all intramolecular ligand interactions to zero
+        '''
+        if self.simulation_type == "enhanced":
+            from openmmplumed import PlumedForce
+            plumed_file = open(f"plumed.dat", "r")
+            plumed_script = plumed_file.read()
+            system.addForce(PlumedForce(plumed_script))
+            plumed_file.close()
+        '''
+
+        # if using pair-net must set all intramolecular ligand interactions to zero
+        if self.ligand:
             if self.pairnet_path != "none":
-
-                # exclude all non-bonded interactions
-                nb = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
-                for i in range(self.ligand_n_atom):
-                    for j in range(i):
-                        nb.addException(i, j, 0, 1, 0, replace=True)
-
-                # set all bond force constants to zero
-                bond_force = [f for f in system.getForces() if isinstance(f, HarmonicBondForce)][0]
-                for i in range(bond_force.getNumBonds()):
-                    p1, p2, length, k = bond_force.getBondParameters(i)
-                    bond_force.setBondParameters(i, p1, p2, length, 0)
-
-                # set all angles force constants to zero
-                angle_force = [f for f in system.getForces() if isinstance(f, HarmonicAngleForce)][0]
-                for i in range(angle_force.getNumAngles()):
-                    p1, p2, p3, angle, k = angle_force.getAngleParameters(i)
-                    angle_force.setAngleParameters(i, p1, p2, p3, angle, 0)
-
-                # set all dihedral force constants/barrier heights to zero
-                torsion_force = [f for f in system.getForces() if isinstance(f, PeriodicTorsionForce)][0]
-                for i in range(torsion_force.getNumTorsions()):
-                    p1, p2, p3, p4, n, phase, k = torsion_force.getTorsionParameters(i)
-                    torsion_force.setTorsionParameters(i, p1, p2, p3, p4, n, phase, 0)
-
-                # create custom force for PairNet predictions
-                self.ml_force = CustomExternalForce("-fx*x-fy*y-fz*z")
-                system.addForce(self.ml_force)
-                self.ml_force.addPerParticleParameter("fx")
-                self.ml_force.addPerParticleParameter("fy")
-                self.ml_force.addPerParticleParameter("fz")
-                for j in range(ligand.n_atoms):
-                    self.ml_force.addParticle(j, (0, 0, 0))
+                print("Using ML force field (PairNet) for ligand...")
+                self.create_MLP(system)
             else:
+                print("Using MM force field (GAFF2) for ligand...")
                 self.ml_force = None
+            self.get_MM_charges(system)
 
         # setup integrator
         self.temp = self.temp*unit.kelvin
@@ -176,9 +155,8 @@ class MolecularDynamics():
         # setup simulation and output
         # Simulation object ties together topology, system and integrator
         # and maintains list of reporter objects that record or analyse data
-        self.simulation = app.Simulation(modeller.topology, system, integrator)
-        self.simulation.context.setPositions(modeller.positions)
-        self.simulation.context.setVelocitiesToTemperature(self.temp)
+        self.simulation = app.Simulation(self.topology, system, integrator)
+        self.simulation.context.setPositions(self.positions)
         self.simulation.reporters.append(app.PDBReporter("output.pdb", 1000,
             enforcePeriodicBox=True))
         # TODO: replace below with CSDDataReporter?
@@ -206,7 +184,7 @@ class MolecularDynamics():
         time = self.time*unit.nanoseconds
         n_steps = int(time/self.dt)+1
 
-        if self.system_type == "ligand":
+        if self.ligand:
 
             if self.pairnet_path != "none":
                 input_dir = f"{self.pairnet_path}trained_model"
@@ -230,31 +208,34 @@ class MolecularDynamics():
                     csd2pairnet = mapping[:, 0]
                     pairnet2csd = mapping[:, 1]
 
+            else:
+                charges = self.mm_charges
+
         # open files for PairNetOps compatible datasets
-        f1 = open(f"./md_output/coords.txt", 'w')
-        f2 = open(f"./md_output/forces.txt", 'w')
-        f3 = open(f"./md_output/energies.txt", 'w')
+        f1 = open(f"./md_output/coords.txt", "w")
+        f2 = open(f"./md_output/forces.txt", "w")
+        f3 = open(f"./md_output/energies.txt", "w")
+        f4 = open(f"./md_output/charges.txt", "w")
 
         # loop over conformers
         for i_conf in range(self.n_conf):
 
-            if self.system_type == "ligand":
+            if self.ligand:
                 # for first conformer use initial coords and vels defined in setup
                 # for all other conformers reset coords/vels including solvent
                 print(f"Conformer number: {i_conf+1}")
                 if i_conf > 0:
-                    pdb = self.get_pdb(f"{self.input_dir}/ligand_{i_conf}.pdb")
-                    modeller = app.Modeller(self.topology, pdb.positions)
-
+                    input_file = f"{self.input_dir}/ligand_{i_conf}.pdb"
+                    pdb = self.get_pdb(input_file)
                     if self.solvate:
-                        modeller.addSolvent(self.forcefield, numAdded=500)
-                    self.simulation.context.setPositions(modeller.positions)
+                        print("ERROR - cannot yet simulate multiple solvated conformers.")
+                        print("Try single solvated conformer or multi-conformer in gas phase instead.")
+                        exit()
+                    self.simulation.context.setPositions(pdb.positions)
                     self.simulation.context.setVelocitiesToTemperature(self.temp)
 
-            if self.system_type == "protein":
-                pdb = self.get_pdb(f"{self.input_dir}/protein.pdb")
-                modeller = app.Modeller(self.topology, pdb.positions)
-                self.simulation.context.setPositions(modeller.positions)
+            if self.protein:
+                self.simulation.context.setPositions(self.positions)
                 print("Minimising initial protein structure...")
                 self.simulation.minimizeEnergy()
 
@@ -265,7 +246,7 @@ class MolecularDynamics():
             print("Time (ps) | PE (kcal/mol)")
             for i in range(n_steps):
 
-                if self.system_type == "ligand":
+                if self.ligand:
 
                     if self.pairnet_path != "none":
 
@@ -291,31 +272,28 @@ class MolecularDynamics():
                         self.ml_force.updateParametersInContext(self.simulation.context)
 
                 # every 1000 steps save data for PairNetOps compatible dataset
-                if self.system_type == "ligand":
+                if self.ligand:
                     if (i % 100) == 0:
-                        coords = self.simulation.context.getState(
-                            getPositions=True). \
-                            getPositions(asNumpy=True).value_in_unit(
-                            unit.angstrom)
-                        forces = self.simulation.context.getState(
-                            getForces=True). \
-                            getForces(asNumpy=True).in_units_of(
-                            unit.kilocalories_per_mole / unit.angstrom)
+                        coords = self.simulation.context.getState(getPositions=True). \
+                            getPositions(asNumpy=True).value_in_unit(unit.angstrom)
+                        forces = self.simulation.context.getState(getForces=True). \
+                            getForces(asNumpy=True).in_units_of(unit.kilocalories_per_mole / unit.angstrom)
 
                         if self.pairnet_path != "none":
                             energy = prediction[2][0][0]
                         else:
-                            state = self.simulation.context.getState(
-                                getEnergy=True)
+                            state = self.simulation.context.getState(getEnergy=True)
                             energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
+
 
                         np.savetxt(f1, coords[:self.ligand_n_atom])
                         np.savetxt(f2, forces[:self.ligand_n_atom])
                         f3.write(f"{energy}\n")
+                        np.savetxt(f4, charges[:self.ligand_n_atom])
 
                 # TODO: CSDDataReporter output?
                 if ((i+1) % 100) == 0:
-                    if self.system_type == "ligand" and self.pairnet_path != "none":
+                    if self.ligand and self.pairnet_path != "none":
                         energy = prediction[2][0][0]
                     else:
                         state = self.simulation.context.getState(getEnergy=True)
@@ -328,7 +306,7 @@ class MolecularDynamics():
                 self.simulation.step(1)
 
         print("MD simulation has completed.")
-        if self.system_type == "ligand":
+        if self.ligand:
             f1.close()
             f2.close()
             f3.close()
@@ -371,4 +349,65 @@ class MolecularDynamics():
         # TODO: This is where the coordinates are read in.
         pdb = app.PDBFile(filename)
         return pdb
+
+
+    def solvate_system(self, filename):
+        from pdbfixer import PDBFixer
+        from openmm import Vec3
+        fixer = PDBFixer(filename=filename)
+        boxSize = 3.0 * Vec3(1, 1, 1)
+        fixer.addSolvent(boxSize=boxSize)
+        return fixer
+
+
+    def create_MLP(self, system):
+        from openmm import HarmonicBondForce, HarmonicAngleForce, PeriodicTorsionForce
+        from openmm import NonbondedForce, CustomExternalForce
+
+        # exclude all non-bonded interactions
+        nb = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
+        for i in range(self.ligand_n_atom):
+            for j in range(i):
+                nb.addException(i, j, 0, 1, 0, replace=True)
+
+        # set all bond force constants to zero
+        bond_force = [f for f in system.getForces() if isinstance(f, HarmonicBondForce)][0]
+        for i in range(bond_force.getNumBonds()):
+            p1, p2, length, k = bond_force.getBondParameters(i)
+            bond_force.setBondParameters(i, p1, p2, length, 0)
+
+        # set all angles force constants to zero
+        angle_force = [f for f in system.getForces() if isinstance(f, HarmonicAngleForce)][0]
+        for i in range(angle_force.getNumAngles()):
+            p1, p2, p3, angle, k = angle_force.getAngleParameters(i)
+            angle_force.setAngleParameters(i, p1, p2, p3, angle, 0)
+
+        # set all dihedral force constants/barrier heights to zero
+        torsion_force = [f for f in system.getForces() if isinstance(f, PeriodicTorsionForce)][0]
+        for i in range(torsion_force.getNumTorsions()):
+            p1, p2, p3, p4, n, phase, k = torsion_force.getTorsionParameters(i)
+            torsion_force.setTorsionParameters(i, p1, p2, p3, p4, n, phase, 0)
+
+        # create custom force for PairNet predictions
+        self.ml_force = CustomExternalForce("-fx*x-fy*y-fz*z")
+        system.addForce(self.ml_force)
+        self.ml_force.addPerParticleParameter("fx")
+        self.ml_force.addPerParticleParameter("fy")
+        self.ml_force.addPerParticleParameter("fz")
+
+        for j in range(self.ligand_n_atom):
+            self.ml_force.addParticle(j, (0, 0, 0))
+
+        return None
+
+
+    def get_MM_charges(self, system):
+        from openmm import NonbondedForce, unit
+        import numpy as np
+        self.mm_charges = np.zeros(self.ligand_n_atom)
+        nb = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
+        for i in range(system.getNumParticles()):
+            charge, sigma, epsilon = nb.getParticleParameters(i)
+            self.mm_charges[i] = charge.value_in_unit(unit.elementary_charge)
+        return self.mm_charges
 

@@ -25,18 +25,18 @@ def main():
     print("Reading input parameters...")
     simulation.read_inputs()
 
-    if simulation.system_type != "protein":
+    if simulation.ligand and not simulation.protein:
         print(f"Retrieving CSD entry for {simulation.CSD}...")
         structure.ligand(simulation.CSD, simulation)
         print(f"SMILES notation: {simulation.smiles} ")
         print(f"Using {simulation.n_conf} conformer(s)...")
 
-    if simulation.system_type != "ligand":
+    if simulation.protein and not simulation.ligand:
         print("Retrieving PDB entry...")
         structure.protein(simulation.PDB, simulation)
         simulation.n_conf = 1
 
-    if simulation.system_type == "ligand-protein":
+    if simulation.ligand and simulation.protein:
         # TODO: protein-ligand docking option here.
         pass
 
@@ -49,18 +49,3 @@ def main():
 if __name__ == '__main__':
     main()
 
-
-def test():
-    import ccdc
-    from openff.toolkit.topology import Molecule
-    from openmm import app
-    from openmmforcefields.generators import GAFFTemplateGenerator
-    ligand = Molecule.from_smiles("CC(=O)Oc1ccccc1C(O)=O",
-                                  allow_undefined_stereo=True)
-    gaff = GAFFTemplateGenerator(molecules=ligand)
-    forcefield = app.ForceField("amber14-all.xml")
-    forcefield.registerTemplateGenerator(gaff.generator)
-    pdb = app.PDBFile("ligand_0.pdb")
-    system = forcefield.createSystem(pdb.topology)
-    print("success!")
-    exit()
