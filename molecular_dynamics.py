@@ -6,7 +6,6 @@ class MolecularDynamics():
     def __init__(self):
         import sys
         self.resetopenflags = sys.getdlopenflags()
-        print(self.resetopenflags)
         pass
 
 
