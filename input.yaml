@@ -5,7 +5,7 @@ PDB identifier: 3I40
 analyse torsions: False
 simulation type: standard
 pair-net model path: none
-partial charges: from_file
+partial charges: am1-bcc
 solvate system: no
 ensemble: NVT
 temperature (K): 300.0
