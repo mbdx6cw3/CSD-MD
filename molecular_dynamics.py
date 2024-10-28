@@ -4,6 +4,9 @@ class MolecularDynamics():
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     def __init__(self):
+        import sys
+        self.resetopenflags = sys.getdlopenflags()
+        print(self.resetopenflags)
         pass
 
 
@@ -62,7 +65,7 @@ class MolecularDynamics():
             shutil.rmtree(self.input_dir)
         os.makedirs(self.input_dir)
 
-        self.output_dir = "md_output"
+        self.output_dir = "md_data"
         isExist = os.path.exists(self.output_dir)
         if isExist:
             shutil.rmtree(self.output_dir)
@@ -78,8 +81,11 @@ class MolecularDynamics():
         from openmm import LangevinMiddleIntegrator, app, unit
         from openmmforcefields.generators import SystemGenerator
         from openff.toolkit.topology import Molecule
-        import warnings
+        import warnings, sys
         warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+        # this is required to reset paths after loading ccdc modules
+        sys.setdlopenflags(self.resetopenflags)
 
         # set name of input file for this system
         if self.ligand and not self.protein:
@@ -145,7 +151,6 @@ class MolecularDynamics():
                 print("Using MM force field (GAFF2) for ligand...")
                 self.ml_force = None
                 self.assign_charges(system)
-                print(self.mm_charges)
 
         # setup integrator
         self.temp = self.temp*unit.kelvin
@@ -175,7 +180,7 @@ class MolecularDynamics():
         :param:
         :return:
         """
-        from openmm import unit, app
+        from openmm import unit
         import os
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
         import tensorflow as tf
@@ -206,16 +211,18 @@ class MolecularDynamics():
                     # TODO: This can be made more efficient if either:
                     # TODO: 1) atom ordering of CCDC outputs can be changed
                     # TODO: 2) mapping of topology/structure prior to starting simulation
-                    mapping = np.loadtxt(f"{self.pairnet_path}atom_mapping.dat", dtype=int)
+                    mapping = np.loadtxt(f"{self.pairnet_path}/atom_mapping.dat", dtype=int)
                     csd2pairnet = mapping[:, 0]
                     pairnet2csd = mapping[:, 1]
 
+            # open files for storing PairNetOps compatible datasets
+            f1 = open(f"{self.output_dir}/coords.txt", "w")
+            f2 = open(f"{self.output_dir}/forces.txt", "w")
+            f3 = open(f"{self.output_dir}/energies.txt", "w")
+            f4 = open(f"{self.output_dir}/charges.txt", "w")
 
-        # open files for PairNetOps compatible datasets
-        f1 = open(f"./md_output/coords.txt", "w")
-        f2 = open(f"./md_output/forces.txt", "w")
-        f3 = open(f"./md_output/energies.txt", "w")
-        f4 = open(f"./md_output/charges.txt", "w")
+            # open files for storing PairNetOps compatible datasets
+            data_files = [f1, f2, f3, f4]
 
         # loop over conformers
         for i_conf in range(self.n_conf):
@@ -263,6 +270,7 @@ class MolecularDynamics():
                         prediction = self.get_pairnet_prediction(model, atoms, coords)
                         ML_forces = prediction[0] * unit.kilocalories_per_mole / unit.angstrom
                         ML_forces = np.reshape(ML_forces, (-1, 3))
+                        energy = prediction[2][0][0]
 
                         if map:
                             ML_forces = ML_forces[pairnet2csd] # map pairnet back to CSD
@@ -273,26 +281,22 @@ class MolecularDynamics():
 
                 # every 1000 steps save data for PairNetOps compatible dataset
                 if self.ligand:
-                    if (i % 100) == 0:
+                    if (i % 1000) == 0:
+
                         coords = self.simulation.context.getState(getPositions=True). \
                             getPositions(asNumpy=True).value_in_unit(unit.angstrom)
                         forces = self.simulation.context.getState(getForces=True). \
                             getForces(asNumpy=True).in_units_of(unit.kilocalories_per_mole / unit.angstrom)
 
-                        if self.pairnet_path != "none":
-                            energy = prediction[2][0][0]
-                        else:
+                        if self.pairnet_path == "none":
                             state = self.simulation.context.getState(getEnergy=True)
                             energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
                             charges = self.mm_charges
 
-                        np.savetxt(f1, coords[:self.ligand_n_atom])
-                        np.savetxt(f2, forces[:self.ligand_n_atom])
-                        f3.write(f"{energy}\n")
-                        np.savetxt(f4, charges[:self.ligand_n_atom])
+                        self.write_dataset(coords, forces, energy, charges, data_files)
 
                 # TODO: CSDDataReporter output?
-                if ((i+1) % 100) == 0:
+                if ((i+1) % 1000) == 0:
                     if self.ligand and self.pairnet_path != "none":
                         energy = prediction[2][0][0]
                     else:
@@ -414,4 +418,13 @@ class MolecularDynamics():
         elif self.charges == "from_file":
             self.mm_charges = np.loadtxt("charges.txt")
         return self.mm_charges
+
+
+    def write_dataset(self, coords, forces, energy, charges, data_files):
+        import numpy as np
+        np.savetxt(data_files[0], coords[:self.ligand_n_atom])
+        np.savetxt(data_files[1], forces[:self.ligand_n_atom])
+        data_files[2].write(f"{energy}\n")
+        np.savetxt(data_files[3], charges[:self.ligand_n_atom])
+        return None
 
