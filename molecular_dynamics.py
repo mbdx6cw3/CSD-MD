@@ -4,8 +4,6 @@ class MolecularDynamics():
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
     def __init__(self):
-        import sys
-        self.resetopenflags = sys.getdlopenflags()
         pass
 
 
@@ -80,11 +78,8 @@ class MolecularDynamics():
         from openmm import LangevinMiddleIntegrator, app, unit
         from openmmforcefields.generators import SystemGenerator
         from openff.toolkit.topology import Molecule
-        import warnings, sys
+        import warnings
         warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-        # this is required to reset paths after loading ccdc modules
-        sys.setdlopenflags(self.resetopenflags)
 
         # set name of input file for this system
         if self.ligand and not self.protein:

@@ -7,9 +7,13 @@ class GetStructure():
 
         :return:
         """
+        import sys
+        resetopenflags = sys.getdlopenflags()
         from ccdc.conformer import ConformerGenerator, GeometryAnalyser
         from ccdc.io import MoleculeWriter
         from ccdc.io import EntryReader
+        # this is required to reset paths after loading ccdc modules
+        sys.setdlopenflags(resetopenflags)
 
         csd_reader = EntryReader("CSD")
         entry = csd_reader.entry(identifier)
