@@ -2,16 +2,26 @@ CSD-MD is a Python package that enables the user to setup and run a molecular
 dynamics simulation from an entry in the Cambridge Structural Database.
 
 Installation:
-Example environment setup that works on CSF3:
 module load apps/binapps/anaconda3/2023.09
 conda install -n base conda-libmamba-solver
 conda config --set solver libmamba
 conda create -n csd-md python=3.9
 conda activate csd-md
+conda install openmm openmmforcefields pyyaml pdbfixer openmm-plumed
+
+...then on CSF (Red Hat linux)
 conda install -c /opt/apps/apps/binapps/ccdc-csds/2024.1/ccdc_conda_channel_py39 Pillow six lxml numpy matplotlib
 conda install -c /opt/apps/apps/binapps/ccdc-csds/2024.1/ccdc_conda_channel_py39 csd-python-api
 conda install openmm openmmforcefields pyyaml pdbfixer openmm-plumed
 export CCDC_LICENSING_CONFIGURATION='lf-server;http://login1:8090'
+
+...or on local machine (OS(X)):
+python -m pip install --extra-index-url https://pip.ccdc.cam.ac.uk/ csd-python-api
+
+Notes:
+ Problems finding the CSD Database so had to follow instructions here to set
+ up mamba and save environment variables in ./etc/conda/activate.d/env_vars.sh:
+ https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#set-env-vars
 
 Running MD simulations:
 A single .yaml input file is required. This contains all information
@@ -66,6 +76,8 @@ Notes:
 For a simulation involving a ligand OpenFF is used to generate a non-standard
 residue template with AM1-BCC charges assigned.
 
+Only neutral molecules?
+
 References:
 [1] CR Groom, IJ Bruno, MP Lightfoot and SC Ward, The Cambridge Structural
     Database, 2016, Acta Cryst. B72: 171-179.
@@ -91,22 +103,3 @@ References:
     The CSD Python Application Programming Interface (API), J. Appl. Cryst., 2024,
     57, 1235-1250.
 
-
-Installation on local machine:
-Note, CSD System must first be installed:
-https://www.ccdc.cam.ac.uk/support-and-resources/csdsdownloads/
-
-Quicker, easier and more robust using mamba instead of conda:
-Mamba installation instructions: https://github.com/conda-forge/miniforge
-wget "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
-bash Miniforge3-$(uname)-$(uname -m).sh ---> yes to initialise at the end (add executables to the path)
-
-Example environment setup - on local machine:
-mamba create -n csd-md python=3.9
-mamba activate csd-md
-mamba install openmm openmmforcefields pyyaml tensorflow=2.12 pdbfixer
-python -m pip install --extra-index-url https://pip.ccdc.cam.ac.uk/ csd-python-api
-Notes:
- Problems finding the CSD Database so had to follow instructions here to set
- up mamba and save environment variables in ./etc/conda/activate.d/env_vars.sh:
- https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#set-env-vars

@@ -2,7 +2,7 @@ name: demonstration
 system type: ligand
 CSD identifier: ACSALA
 PDB identifier: 3I40
-analyse torsions: False
+analyse torsions: yes
 simulation type: standard
 pair-net model path: none
 partial charges: am1-bcc

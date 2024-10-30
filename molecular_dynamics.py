@@ -52,8 +52,12 @@ class MolecularDynamics():
         self.dt = md_params.get("timestep (fs)")
         self.pairnet_path = md_params.get("pair-net model path")
         self.time = md_params.get("simulation time (ns)")
-        self.simulation_type = md_params.get("simulation type")
-        self.analyse_torsions = md_params.get("analyse torsions")
+        self.type = md_params.get("simulation type")
+        if md_params.get("analyse torsions"):
+            self.analyse_torsions = True
+        else:
+            self.analyse_torsions = False
+
         self.charges = md_params.get("partial charges")
 
         self.input_dir = "md_input"
@@ -127,14 +131,15 @@ class MolecularDynamics():
             forcefield_kwargs={"rigidWater": True}, cache="db.json")
         system = system_generator.create_system(self.topology, molecules=molecules)
 
-        '''
-        if self.simulation_type == "enhanced":
+        # add metadynamics force to system
+        if self.type == "enhanced":
             from openmmplumed import PlumedForce
-            plumed_file = open(f"plumed.dat", "r")
-            plumed_script = plumed_file.read()
+            print("Using metadynamics bias...")
+            plumed_script = self.write_plumed_script()
+            print()
+            print("PLUMED input...")
+            print(plumed_script)
             system.addForce(PlumedForce(plumed_script))
-            plumed_file.close()
-        '''
 
         # if using pair-net must set all intramolecular ligand interactions to zero
         if self.ligand:
@@ -153,8 +158,7 @@ class MolecularDynamics():
         if self.ensemble == "NVT":
             integrator = LangevinMiddleIntegrator(self.temp, temp_coupling, self.dt)
 
-        # setup simulation and output
-        # Simulation object ties together topology, system and integrator
+        # setup simulation and output tying together topology, system and integrator
         # and maintains list of reporter objects that record or analyse data
         self.simulation = app.Simulation(self.topology, system, integrator)
         self.simulation.context.setPositions(self.positions)
@@ -422,3 +426,91 @@ class MolecularDynamics():
         np.savetxt(data_files[3], charges[:self.ligand_n_atom])
         return None
 
+
+    def write_plumed_script(self):
+
+        # each torsion will be allocated to a CV
+        torsion_CV = [None]*len(self.unique_torsions)
+
+        # start CV counter
+        CV_count = 1
+
+        # first torsion will always be allocated to new CV
+        torsion_CV[0] = CV_count
+
+        # loop through all torsions to identify all CVs
+        for i_tors in range (1, len(self.unique_torsions)):
+
+            # get central atom pair for this torsion
+            pair_1 = self.unique_torsions[i_tors][1:-1]
+
+            # assume we will create a new CV
+            new_CV = True
+
+            # loop over other torsions
+            for j_tors in range(i_tors):
+
+                # get central atom pair for this torsion
+                pair_2 = self.unique_torsions[j_tors][1:-1]
+
+                # check to see if there are any shared atom indices in the two torsions
+                #adjacent_torsions = [i for i, j in zip(i_pair, j_pair) if i == j]
+                #adjacent_torsions = bool(set(i_pair) & set(j_pair))
+                #adjacent_torsions = set(adjacent_torsions); any(i in a for i in b)
+                adjacent_torsions = not set(pair_1).isdisjoint(pair_2)
+
+                # if the two pairs do not share any atoms it may be a new CV
+                if adjacent_torsions:
+                    new_CV = False
+                    torsion_CV[i_tors] = torsion_CV[j_tors]
+                    break
+
+            # if no adjacent torsions were found assign this torsion to a new CV
+            if new_CV:
+                CV_count += 1
+                torsion_CV[i_tors] = CV_count
+
+        self.CV_count = CV_count
+
+        bias_pace = 500 # frequency of depositing Gaussians
+        bias_height = 1.0 # Gaussian height in kJ/mol
+        bias_sigma = 0.35 # Gaussian width
+
+        template_text = [": TORSION ATOMS=", ": METAD ARG=", f" PACE={bias_pace}"
+                        f" HEIGHT={bias_height} SIGMA=", " FILE=./HILLS_",
+                         "PRINT STRIDE=10 ARG=", ".bias FILE=./COLVAR_"]
+
+        plumed_text = ""
+        # write all torsion angles for biasing
+        for i_tors in range(len(self.unique_torsions)):
+            indices = ",".join(str(x+1) for x in self.unique_torsions[i_tors])
+            text = f"phi{i_tors+1}" + template_text[0] + indices + "\n"
+            plumed_text = plumed_text + text
+        plumed_text = plumed_text + "\n"
+
+        # for each CV bias determine which torsions are in it
+        for i_CV in range(self.CV_count):
+            text = f"metad{i_CV + 1}" + template_text[1]
+            torsion_list = [i for i, n in enumerate(torsion_CV) if n == (i_CV+1)]
+            for i_tors in range(len(torsion_list)):
+                text = text + f"phi{torsion_list[i_tors]+1}"
+                if i_tors != len(torsion_list)-1:
+                    text = text + ","
+            text = text + template_text[2]
+            for i_tors in range(len(torsion_list)):
+                text = text + f"{bias_sigma}"
+                if i_tors != len(torsion_list)-1:
+                    text = text + ","
+            text = text + template_text[3] + f"{i_CV+1}" + "\n"
+            plumed_text = plumed_text + text
+        plumed_text = plumed_text + "\n"
+
+        for i_CV in range(self.CV_count):
+            text = template_text[4]
+            torsion_list = [i for i, n in enumerate(torsion_CV) if n == (i_CV+1)]
+            for i_tors in range(len(torsion_list)):
+                text = text + f"phi{torsion_list[i_tors]+1}" + ","
+            text = text + f"metad{i_CV+1}" + template_text[5] + f"{i_CV+1}" + "\n"
+            plumed_text = plumed_text + text
+
+        return plumed_text
