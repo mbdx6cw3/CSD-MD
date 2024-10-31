@@ -64,13 +64,16 @@ class MolecularDynamics():
             print("Provide path to pairnet model or change charge scheme.")
             exit()
 
-        self.input_dir = "md_input"
+        #TODO: where should this be read in?
+        self.net_charge = 0.0
+
+        self.input_dir = "md_input/"
         isExist = os.path.exists(self.input_dir)
         if isExist:
             shutil.rmtree(self.input_dir)
         os.makedirs(self.input_dir)
 
-        self.output_dir = "md_data"
+        self.output_dir = "md_data/"
         isExist = os.path.exists(self.output_dir)
         if isExist:
             shutil.rmtree(self.output_dir)
@@ -83,7 +86,7 @@ class MolecularDynamics():
         """Set up an MD simulation.
         ...
         """
-        from openmm import LangevinMiddleIntegrator, app, unit
+        from openmm import app
         from openmmforcefields.generators import SystemGenerator
         from openff.toolkit.topology import Molecule
         import warnings
@@ -91,13 +94,13 @@ class MolecularDynamics():
 
         # set name of input file for this system
         if self.ligand and not self.protein:
-            input_file = f"{self.input_dir}/ligand_0.pdb"
+            input_file = f"{self.input_dir}ligand_0.pdb"
 
         if self.protein and not self.ligand:
-            input_file = f"{self.input_dir}/protein.pdb"
+            input_file = f"{self.input_dir}protein.pdb"
 
         if self.ligand and self.protein:
-            input_file = f"{self.input_dir}/protein-ligand.pdb"
+            input_file = f"{self.input_dir}protein-ligand.pdb"
 
         # retrieve pdb file
         pdb = get_pdb(input_file)
@@ -129,54 +132,50 @@ class MolecularDynamics():
             self.positions = solvated_pdb.positions
             print(f"Adding {int(n_solvent / 3)} solvent molecules...")
 
-        # construct OpenMM system object using topology and forcefield
-        system_generator = SystemGenerator(forcefields=std_ff,
-            small_molecule_forcefield=small_mol_ff,
-            forcefield_kwargs={"rigidWater": True}, cache="db.json")
-        system = system_generator.create_system(self.topology, molecules=molecules)
+        # construct M system using topology and forcefield
+        print("Creating system...")
+        system_generator = SystemGenerator(forcefields=std_ff, small_molecule_forcefield=small_mol_ff,
+            forcefield_kwargs={"constraints": None, "rigidWater": True}, cache="db.json")
+        self.system = system_generator.create_system(self.topology, molecules=molecules)
 
-        # add metadynamics force to system
-        if self.type == "enhanced":
-            from openmmplumed import PlumedForce
-            print("Using metadynamics bias...")
-            plumed_script = write_plumed_script(self.unique_torsions)
-            print()
-            print("PLUMED input...")
-            print(plumed_script)
-            system.addForce(PlumedForce(plumed_script))
-
+        # get fixed charges (will be overwritten later if predicted by a model)
         if self.ligand:
-
-            # get fixed charges (will be overwritten later if predicted by a model)
-            self.fixed_charges = assign_fixed_charges(system, self.partial_charges, self.ligand_n_atom)
-
-            # if using pair-net must set all intramolecular ligand interactions to zero
-            if self.pairnet_path != "none":
-                print("Using ML force field (PairNet) for ligand...")
-                system, self.ml_force = create_MLP(system, self.ligand_n_atom)
-            else:
-                print("Using MM force field (GAFF2) for ligand...")
-                self.ml_force = None
-
-
-        # setup integrator
-        self.temp = self.temp*unit.kelvin
-        self.dt = self.dt*unit.femtoseconds
-        temp_coupling = 1/unit.picosecond
-        if self.ensemble == "NVT":
-            integrator = LangevinMiddleIntegrator(self.temp, temp_coupling, self.dt)
+            self.ml_force = None
+            self.fixed_charges = assign_fixed_charges(self.system, self.partial_charges, self.ligand_n_atom)
+            # add metadynamics force to system
+            if self.type == "enhanced":
+                from openmmplumed import PlumedForce
+                print("Using metadynamics bias...")
+                plumed_script = write_plumed_script(self.unique_torsions)
+                print()
+                print("PLUMED input...")
+                print(plumed_script)
+                self.system.addForce(PlumedForce(plumed_script))
 
         # setup simulation and output tying together topology, system and integrator
-        # and maintains list of reporter objects that record or analyse data
-        self.simulation = app.Simulation(self.topology, system, integrator)
+        print("Creating simulation...")
+        self.simulation = app.Simulation(self.topology, self.system,
+                get_integrator(self.temp, self.dt, self.ensemble))
         self.simulation.context.setPositions(self.positions)
+
+        print("Minimising initial structure...")
+        self.simulation.minimizeEnergy()
+
+        # if using pair-net create new system with ML force and minised coords
+        if self.pairnet_path != "none":
+            print("Using ML force field (PairNet) for ligand...")
+            minimised_coords = self.simulation.context.getState(
+                getPositions=True).getPositions(asNumpy=True)
+            self.system = turn_off_MM(self.system, self.ligand_n_atom)
+            self.system, self.ml_force = create_MLP(self.system, self.ligand_n_atom)
+            self.simulation = app.Simulation(self.topology, self.system,
+                get_integrator(self.temp, self.dt, self.ensemble))
+            self.simulation.context.setPositions(minimised_coords)
+
         self.simulation.reporters.append(app.PDBReporter("output.pdb", 1000,
-            enforcePeriodicBox=True))
-        # TODO: replace below with CSDDataReporter?
-        '''
-        self.simulation.reporters.append(app.StateDataReporter(stdout, 100,
-            step=True, potentialEnergy=True, temperature=True))
-        '''
+                                    enforcePeriodicBox=True))
+
+        # TODO: CSDDataReporter?
         return None
 
 
@@ -194,13 +193,14 @@ class MolecularDynamics():
 
         tf.get_logger().setLevel('ERROR')
 
-        time = self.time*unit.nanoseconds
-        n_steps = int(time/self.dt)+1
+        self.time = self.time*unit.nanoseconds
+        self.dt = self.dt*unit.femtoseconds
+        n_steps = int(self.time/self.dt)+1
 
         if self.ligand:
 
             if self.pairnet_path != "none":
-                input_dir = f"{self.pairnet_path}trained_model"
+                input_dir = f"{self.pairnet_path}trained_model/"
                 print(f"Using pairnet model: {input_dir}")
                 isExist = os.path.exists(input_dir)
                 if not isExist:
@@ -211,27 +211,26 @@ class MolecularDynamics():
                     model, atoms = load_pairnet_v1(input_dir)
                 elif pairnet_version == 2:
                     model, atoms = load_pairnet_v2(input_dir, self.ligand_n_atom)
-                map = False
-                isExist = os.path.exists(f"{self.pairnet_path}atom_mapping.dat")
-                if isExist:
-                    map = True
+
+                map = os.path.exists(f"{self.pairnet_path}atom_mapping.dat")
+                if map:
                     # this step is necessary because pairnet models have a specific (arbitrary) atom ordering
                     # TODO: Ideally would not need a manually created mapping file.
                     # TODO: For now, can remap atoms in this way because we only have models for a few molecules anyway.
                     # TODO: This can be made more efficient if either:
                     # TODO: 1) atom ordering of CCDC outputs can be changed
                     # TODO: 2) mapping of topology/structure prior to starting simulation
-                    mapping = np.loadtxt(f"{self.pairnet_path}/atom_mapping.dat", dtype=int)
+                    mapping = np.loadtxt(f"{self.pairnet_path}atom_mapping.dat", dtype=int)
                     csd2pairnet = mapping[:, 0]
                     pairnet2csd = mapping[:, 1]
 
             charges = self.fixed_charges
 
             # open files for storing PairNetOps compatible datasets
-            f1 = open(f"{self.output_dir}/coords.txt", "w")
-            f2 = open(f"{self.output_dir}/forces.txt", "w")
-            f3 = open(f"{self.output_dir}/energies.txt", "w")
-            f4 = open(f"{self.output_dir}/charges.txt", "w")
+            f1 = open(f"{self.output_dir}coords.txt", "w")
+            f2 = open(f"{self.output_dir}forces.txt", "w")
+            f3 = open(f"{self.output_dir}energies.txt", "w")
+            f4 = open(f"{self.output_dir}charges.txt", "w")
 
             # open files for storing PairNetOps compatible datasets
             data_files = [f1, f2, f3, f4]
@@ -244,8 +243,8 @@ class MolecularDynamics():
                 # for all other conformers reset coords/vels including solvent
                 print(f"Conformer number: {i_conf+1}")
                 if i_conf > 0:
-                    input_file = f"{self.input_dir}/ligand_{i_conf}.pdb"
-                    pdb = self.get_pdb(input_file)
+                    input_file = f"{self.input_dir}ligand_{i_conf}.pdb"
+                    pdb = get_pdb(input_file)
                     if self.solvate:
                         print("ERROR - cannot yet simulate multiple solvated conformers.")
                         print("Try standard solvated conformer or multi-conformer in gas phase instead.")
@@ -253,13 +252,10 @@ class MolecularDynamics():
                     self.simulation.context.setPositions(pdb.positions)
                     self.simulation.context.setVelocitiesToTemperature(self.temp)
 
-            if self.protein:
-                self.simulation.context.setPositions(self.positions)
-                print("Minimising initial protein structure...")
-                self.simulation.minimizeEnergy()
-
             if self.ensemble == "NVT":
                 self.simulation.context.setVelocitiesToTemperature(self.temp)
+
+            #TODO: print first pdb structure
 
             print("Performing MD simulation...")
             print("Time (ps) | PE (kcal/mol)")
@@ -272,7 +268,7 @@ class MolecularDynamics():
                         tf.keras.backend.clear_session()
 
                     coords = self.simulation.context.getState(getPositions=True). \
-                        getPositions(asNumpy=True).value_in_unit(unit.angstrom)
+                        getPositions(asNumpy=True).value_in_unit(unit.angstrom)[:self.ligand_n_atom]
 
                     if map:
                         coords = coords[csd2pairnet] # map CSD to pairnet atom order
@@ -280,60 +276,39 @@ class MolecularDynamics():
                     prediction = get_pairnet_prediction(model, atoms, coords)
                     ML_forces = prediction[0] * unit.kilocalories_per_mole / unit.angstrom
                     ML_forces = np.reshape(ML_forces, (-1, 3))
+                    charges = prediction[2].T
 
                     if map:
                         ML_forces = ML_forces[pairnet2csd] # map pairnet back to CSD
+                        charges = charges[pairnet2csd]
+
+                    if self.partial_charges == "predicted":
+                        charges = set_charges(charges, self.system, self.simulation,
+                            self.ligand_n_atom, self.net_charge)
 
                     for j in range(self.ligand_n_atom):
                         self.ml_force.setParticleParameters(j, j, ML_forces[j])
                     self.ml_force.updateParametersInContext(self.simulation.context)
 
-                    '''
-                    if self.partial_charges == "predicted":
-                        ligand_charges = prediction[2].T
-                        # correct predicted partial charges so that ligand has correct net charge
-                        corr = (sum(ligand_charges) - net_charge) / n_atom
-                        for atm in range(n_atom):
-                            ligand_charges[atm] = ligand_charges[atm] - corr
-                        nb = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
-                        for j in range(ligand_n_atom):
-                            [old_charge, sigma, epsilon] = nb.getParticleParameters(j)
-                            nbforce.setParticleParameters(j, ligand_charges[j], sigma, epsilon)
-                            charges[j] = ligand_charges[j]  # TODO: units???
-                        nbforce.updateParametersInContext(self.simulation.context)
-                    '''
-
                 # every 1000 steps save data for PairNetOps compatible dataset
-                # TODO: merge?
-                if self.ligand:
-                    if (i % 100) == 0:
+                if (i % 100) == 0:
 
+                    state = self.simulation.context.getState(getEnergy=True)
+                    energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
+
+                    if self.ligand:
                         coords = self.simulation.context.getState(getPositions=True). \
                             getPositions(asNumpy=True).value_in_unit(unit.angstrom)
                         forces = self.simulation.context.getState(getForces=True). \
                             getForces(asNumpy=True).in_units_of(unit.kilocalories_per_mole / unit.angstrom)
 
-                        if self.pairnet_path == "none":
-                            state = self.simulation.context.getState(getEnergy=True)
-                            energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
-                        else:
+                        if self.pairnet_path != "none":
                             if pairnet_version == 1:
                                 energy = prediction[2][0][0]
                             elif pairnet_version == 2:
                                 energy = prediction[1][0][0]
 
                         write_dataset(self.ligand_n_atom, coords, forces, energy, charges, data_files)
-
-                # TODO: CSDDataReporter output?
-                if ((i+1) % 100) == 0:
-                    if self.ligand and self.pairnet_path != "none":
-                        if pairnet_version == 1:
-                            energy = prediction[2][0][0]
-                        elif pairnet_version == 2:
-                            energy = prediction[1][0][0]
-                    else:
-                        state = self.simulation.context.getState(getEnergy=True)
-                        energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
 
                     time = self.simulation.context.getState().getTime(). \
                         value_in_unit(unit.picoseconds)
@@ -361,13 +336,13 @@ def load_pairnet_v1(input_dir):
     from network_v1 import Network
     import numpy as np
     print("Loading a previously trained model...")
-    atoms = np.loadtxt(f"{input_dir}/atoms.txt", dtype=np.float32).reshape(-1)
-    ann_params = Network.read_params(f"{input_dir}/ann_params.txt")
-    prescale = np.loadtxt(f"{input_dir}/prescale.txt", dtype=np.float64).reshape(-1)
+    atoms = np.loadtxt(f"{input_dir}atoms.txt", dtype=np.float32).reshape(-1)
+    ann_params = Network.read_params(f"{input_dir}ann_params.txt")
+    prescale = np.loadtxt(f"{input_dir}prescale.txt", dtype=np.float64).reshape(-1)
     network = Network()
     model = network.build(len(atoms), ann_params, prescale)
     model.summary()
-    model.load_weights(f"{input_dir}/best_ever_model").expect_partial()
+    model.load_weights(f"{input_dir}best_ever_model").expect_partial()
     return model, atoms
 
 
@@ -383,7 +358,7 @@ def load_pairnet_v2(input_dir, ligand_n_atom):
     network = Network()
     model = network.load(input_dir)
     model.summary()
-    model.load_weights(f"{input_dir}/best_ever_model").expect_partial()
+    model.load_weights(f"{input_dir}best_ever_model").expect_partial()
     atoms = network.atoms
     if len(atoms) != ligand_n_atom:
         print("ERROR - number of atoms in trained network is incompatible with number of atoms in topology")
@@ -418,13 +393,31 @@ def solvate_system(filename):
     return fixer
 
 
-def create_MLP(system, ligand_n_atom):
-    from openmm import HarmonicBondForce, HarmonicAngleForce, PeriodicTorsionForce
-    from openmm import NonbondedForce, CustomExternalForce
+def create_MLP(system, n_atom):
+
+    from openmm import CustomExternalForce
+
+    # create custom force for PairNet predictions
+    ml_force = CustomExternalForce("-fx*x-fy*y-fz*z")
+    system.addForce(ml_force)
+    ml_force.addPerParticleParameter("fx")
+    ml_force.addPerParticleParameter("fy")
+    ml_force.addPerParticleParameter("fz")
+
+    for j in range(n_atom):
+        ml_force.addParticle(j, (0, 0, 0))
+
+    return system, ml_force
+
+
+def turn_off_MM(system, n_atom):
+
+    from openmm import NonbondedForce, HarmonicBondForce, HarmonicAngleForce
+    from openmm import PeriodicTorsionForce
 
     # exclude all non-bonded interactions
     nb = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
-    for i in range(ligand_n_atom):
+    for i in range(n_atom):
         for j in range(i):
             nb.addException(i, j, 0, 1, 0, replace=True)
 
@@ -446,17 +439,7 @@ def create_MLP(system, ligand_n_atom):
         p1, p2, p3, p4, n, phase, k = torsion_force.getTorsionParameters(i)
         torsion_force.setTorsionParameters(i, p1, p2, p3, p4, n, phase, 0)
 
-    # create custom force for PairNet predictions
-    ml_force = CustomExternalForce("-fx*x-fy*y-fz*z")
-    system.addForce(ml_force)
-    ml_force.addPerParticleParameter("fx")
-    ml_force.addPerParticleParameter("fy")
-    ml_force.addPerParticleParameter("fz")
-
-    for j in range(ligand_n_atom):
-        ml_force.addParticle(j, (0, 0, 0))
-
-    return system, ml_force
+    return system
 
 
 def assign_fixed_charges(system, charge_scheme, ligand_n_atom):
@@ -573,4 +556,32 @@ def write_plumed_script(torsions):
         plumed_text = plumed_text + text
 
     return plumed_text
+
+
+def get_integrator(temp, dt, ensemble):
+    from openmm import unit
+    from openmm import LangevinMiddleIntegrator
+    temp = temp * unit.kelvin
+    dt = dt * unit.femtoseconds
+    temp_coupling = 1 / unit.picosecond
+    if ensemble == "NVT":
+        integrator = LangevinMiddleIntegrator(temp, temp_coupling, dt)
+    return integrator
+
+
+def set_charges(predicted_charges, system, simulation, n_atom, net_charge):
+    from openmm import NonbondedForce
+    from openmm import unit
+
+    # adjust to give correct net charge
+    corr = (sum(predicted_charges[:,0]) - net_charge) / n_atom
+    corrected_charges = (predicted_charges - corr) * unit.elementary_charge
+
+    nbforce = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
+    for j in range(n_atom):
+        [old_charge, sigma, epsilon] = nbforce.getParticleParameters(j)
+        nbforce.setParticleParameters(j, corrected_charges[j][0], sigma, epsilon)
+    nbforce.updateParametersInContext(simulation.context)
+
+    return corrected_charges
 
