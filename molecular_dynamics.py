@@ -190,8 +190,10 @@ class MolecularDynamics():
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
         import tensorflow as tf
         import numpy as np
+        import time as timer
 
         tf.get_logger().setLevel('ERROR')
+        start_time = timer.time()
 
         self.time = self.time*unit.nanoseconds
         self.dt = self.dt*unit.femtoseconds
@@ -291,7 +293,7 @@ class MolecularDynamics():
                     self.ml_force.updateParametersInContext(self.simulation.context)
 
                 # every 1000 steps save data for PairNetOps compatible dataset
-                if (i % 100) == 0:
+                if (i % 1000) == 0:
 
                     state = self.simulation.context.getState(getEnergy=True)
                     energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
@@ -317,7 +319,10 @@ class MolecularDynamics():
                 # advance trajectory one timestep
                 self.simulation.step(1)
 
-        print("MD simulation has completed.")
+        end_time = timer.time()
+        run_time = end_time - start_time
+        print(f"MD simulation has completed in {timer.strftime('%H:%M:%S', timer.gmtime(run_time))}.")
+
         if self.ligand:
             f1.close()
             f2.close()

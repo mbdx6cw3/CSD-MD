@@ -174,12 +174,12 @@ class Network(object):
 
     def load(self, input_dir):
         import numpy as np
-        self.params = read_params(f"{input_dir}/ann_params.txt")
-        self.atoms = np.loadtxt(f"{input_dir}/nuclear_charges.txt", dtype=np.float32).reshape(-1)
-        self.prescale = np.loadtxt(f"./{input_dir}/prescale.txt", dtype=np.float64).reshape(-1)
+        self.params = read_params(f"{input_dir}ann_params.txt")
+        self.atoms = np.loadtxt(f"{input_dir}nuclear_charges.txt", dtype=np.float32).reshape(-1)
+        self.prescale = np.loadtxt(f"{input_dir}prescale.txt", dtype=np.float64).reshape(-1)
         model = Network.build(self)
         model.summary()
-        model.load_weights(f"./{input_dir}/best_ever_model").expect_partial()
+        model.load_weights(f"{input_dir}best_ever_model").expect_partial()
         return model
 
 
