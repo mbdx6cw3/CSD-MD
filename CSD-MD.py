@@ -14,31 +14,29 @@ def main():
 
     :return:
     """
-    from get_structure import GetStructure
     from molecular_dynamics import MolecularDynamics
-    import warnings
+    import warnings, get_structure
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-    simulation = MolecularDynamics()
-    structure = GetStructure()
-
     print("Reading input parameters...")
+    simulation = MolecularDynamics()
+    # TODO: move read_inputs to init method
     simulation.read_inputs()
 
     if simulation.ligand and not simulation.protein:
         print(f"Retrieving CSD entry for {simulation.CSD}...")
-        structure.ligand(simulation.CSD, simulation)
+        get_structure.ligand(simulation.CSD, simulation)
         print(f"SMILES notation: {simulation.smiles} ")
         print(f"Using {simulation.n_conf} conformer(s)...")
 
-    if simulation.protein and not simulation.ligand:
-        print("Retrieving PDB entry...")
-        structure.protein(simulation.PDB, simulation)
+    if simulation.protein:
+        print("Retrieving PDB...")
+        get_structure.protein(simulation.PDB, simulation)
         simulation.n_conf = 1
 
-    if simulation.ligand and simulation.protein:
-        # TODO: protein-ligand docking option here.
-        pass
+        if simulation.ligand:
+            print("Docking...")
+            get_structure.ligand_protein()
 
     print("Setting up MD simulation...")
     simulation.setup()

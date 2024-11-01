@@ -27,6 +27,30 @@ class MolecularDynamics():
             with open(input_file, 'r') as input:
                 md_params = yaml.full_load(input)
 
+        self.CSD = md_params.get("CSD identifier")
+        self.PDB = md_params.get("PDB identifier")
+        self.solvate = md_params.get("solvate system")
+        self.temp = md_params.get("temperature (K)")
+        self.ensemble = md_params.get("ensemble")
+        self.dt = md_params.get("timestep (fs)")
+        self.pairnet_path = md_params.get("pair-net model path")
+        self.time = md_params.get("simulation time (ns)")
+        self.type = md_params.get("simulation type")
+        if md_params.get("analyse torsions"):
+            self.analyse_torsions = True
+        else:
+            self.analyse_torsions = False
+
+        self.partial_charges = md_params.get("partial charges")
+        # TODO: tidy up this check
+        if self.partial_charges != "am1-bcc" and self.partial_charges != "from_file" \
+                and self.partial_charges != "predicted":
+            print("ERROR - charge scheme not recognised.")
+            print("Charge scheme must either be 'am1-bcc', 'from_file' or 'predicted'")
+            print("Switching to 'am1-bcc'")
+            self.partial_charges == "am1-bcc"
+
+        # run some checks
         system_type = md_params.get("system type")
         if system_type != "ligand" and system_type != "protein" and \
             system_type != "ligand-protein":
@@ -44,25 +68,19 @@ class MolecularDynamics():
         else:
             self.protein = False
 
-        self.CSD = md_params.get("CSD identifier")
-        self.PDB = md_params.get("PDB identifier")
-        self.solvate = md_params.get("solvate system")
-        self.temp = md_params.get("temperature (K)")
-        self.ensemble = md_params.get("ensemble")
-        self.dt = md_params.get("timestep (fs)")
-        self.pairnet_path = md_params.get("pair-net model path")
-        self.time = md_params.get("simulation time (ns)")
-        self.type = md_params.get("simulation type")
-        if md_params.get("analyse torsions"):
-            self.analyse_torsions = True
-        else:
-            self.analyse_torsions = False
-
-        self.partial_charges = md_params.get("partial charges")
         if self.partial_charges == "predicted" and self.pairnet_path == "none":
             print("ERROR - cannot predict partial charges without a pairnet model.")
             print("Provide path to pairnet model or change charge scheme.")
             exit()
+        if system_type == "protein":
+            if self.pairnet_path != "none":
+                print("WARNING - PairNet cannot be used for protein simulations.")
+                print("Switching to MM potential.")
+                self.pairnet_path = "none"
+            if self.partial_charges != "none":
+                print("WARNING - must use standard partial charges for standard residues.")
+                print("Resetting charge scheme.")
+                self.partial_charges = "none"
 
         #TODO: where should this be read in?
         self.net_charge = 0.0
@@ -101,6 +119,7 @@ class MolecularDynamics():
 
         if self.ligand and self.protein:
             input_file = f"{self.input_dir}protein-ligand.pdb"
+            self.smiles = "CC(C)Cc1ccc(cc1)C(C)C(O)=O"
 
         # retrieve pdb file
         pdb = get_pdb(input_file)
@@ -237,7 +256,7 @@ class MolecularDynamics():
             # open files for storing PairNetOps compatible datasets
             data_files = [f1, f2, f3, f4]
 
-        # loop over conformers
+        # loop over conformers TODO: remove this, put outer loop in CSD-MD.py
         for i_conf in range(self.n_conf):
 
             if self.ligand:
@@ -462,9 +481,6 @@ def assign_fixed_charges(system, charge_scheme, ligand_n_atom):
             fixed_charges[i] = file_charge[i]
         elif charge_scheme == "predicted":
             fixed_charges[i] = 0.0
-        else:
-            print("ERROR - charge scheme not recognised.")
-            print("Charge scheme must either be 'am1-bcc', 'from_file' or 'predicted'.")
         nb.setParticleParameters(i, fixed_charges[i] *
             unit.elementary_charge, sigma, epsilon)
     return fixed_charges
