@@ -186,8 +186,8 @@ class MolecularDynamics():
 
         # setup simulation and output tying together topology, system and integrator
         print("Creating simulation...")
-        self.simulation = app.Simulation(self.topology, self.system,
-                get_integrator(self.temp, self.dt, self.ensemble))
+        self.integrator = get_integrator(self.temp, self.dt, self.ensemble, self.pairnet_path)
+        self.simulation = app.Simulation(self.topology, self.system, self.integrator)
         self.simulation.context.setPositions(self.positions)
 
         print("Minimising initial structure...")
@@ -200,8 +200,8 @@ class MolecularDynamics():
                 getPositions=True).getPositions(asNumpy=True)
             self.system = turn_off_MM(self.system, self.ligand_n_atom)
             self.system, self.ml_force = create_MLP(self.system, self.ligand_n_atom)
-            self.simulation = app.Simulation(self.topology, self.system,
-                get_integrator(self.temp, self.dt, self.ensemble))
+            self.integrator = get_integrator(self.temp, self.dt, self.ensemble, self.pairnet_path)
+            self.simulation = app.Simulation(self.topology, self.system, self.integrator)
             self.simulation.context.setPositions(minimised_coords)
 
         self.simulation.reporters.append(app.PDBReporter("output.pdb", 1000,
@@ -595,14 +595,19 @@ def write_plumed_script(torsions):
     return plumed_text
 
 
-def get_integrator(temp, dt, ensemble):
+def get_integrator(temp, dt, ensemble, path):
     from openmm import unit
-    from openmm import LangevinMiddleIntegrator
+    from openmm import LangevinMiddleIntegrator, NoseHooverIntegrator
     temp = temp * unit.kelvin
     dt = dt * unit.femtoseconds
     temp_coupling = 1 / unit.picosecond
     if ensemble == "NVT":
-        integrator = LangevinMiddleIntegrator(temp, temp_coupling, dt)
+        if path != "none":
+            print("Using Langevin thermostat...")
+            integrator = LangevinMiddleIntegrator(temp, temp_coupling, dt)
+        else:
+            print("Using Nose-Hoover thermostat...")
+            integrator = NoseHooverIntegrator(temp, temp_coupling, dt)
     return integrator
 
 
