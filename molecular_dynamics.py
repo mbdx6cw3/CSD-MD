@@ -85,12 +85,6 @@ class MolecularDynamics():
         #TODO: where should this be read in?
         self.net_charge = 0.0
 
-        self.input_dir = "md_input/"
-        isExist = os.path.exists(self.input_dir)
-        if isExist:
-            shutil.rmtree(self.input_dir)
-        os.makedirs(self.input_dir)
-
         self.output_dir = "md_data/"
         isExist = os.path.exists(self.output_dir)
         if isExist:
@@ -110,52 +104,67 @@ class MolecularDynamics():
         import warnings
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-        # set name of input file for this system
-        if self.ligand and not self.protein:
-            input_file = f"{self.input_dir}ligand_0.pdb"
+        if self.CSD != "from_gro":
+            # set name of input file for this system
+            if self.ligand and not self.protein:
+                input_file = f"{self.input_dir}ligand_0.pdb"
 
-        if self.protein and not self.ligand:
-            input_file = f"{self.input_dir}protein.pdb"
+            if self.protein and not self.ligand:
+                input_file = f"{self.input_dir}protein.pdb"
 
-        if self.ligand and self.protein:
-            input_file = f"{self.input_dir}protein-ligand.pdb"
-            self.smiles = "CC(C)Cc1ccc(cc1)C(C)C(O)=O"
+            if self.ligand and self.protein:
+                input_file = f"{self.input_dir}protein-ligand.pdb"
+                self.smiles = "CC(C)Cc1ccc(cc1)C(C)C(O)=O"
 
-        # retrieve pdb file
-        pdb = get_pdb(input_file)
+            # retrieve pdb file
+            pdb = get_pdb(input_file)
 
-        # define force field
-        std_ff = ["amber/ff14SB.xml", "amber/tip3p_standard.xml"]
-        small_mol_ff = "gaff-2.11"
+            # define force field
+            std_ff = ["amber/ff14SB.xml", "amber/tip3p_standard.xml"]
+            small_mol_ff = "gaff-2.11"
 
-        # get structure and topology from pdb file
-        self.topology = pdb.topology
-        self.positions = pdb.positions
+            # get structure and topology from pdb file
+            self.topology = pdb.topology
+            self.positions = pdb.positions
 
-        # create topology for non-standard residue from SMILES
-        if self.ligand:
-            print("Creating topology...")
-            ligand = Molecule.from_smiles(self.smiles, allow_undefined_stereo=True)
-            self.ligand_n_atom = ligand.n_atoms
-            molecules = ligand
-            if not self.solvate:
-                self.topology.setUnitCellDimensions([3.0]*3)
+            # create topology for non-standard residue from SMILES
+            if self.ligand:
+                print("Creating topology...")
+                ligand = Molecule.from_smiles(self.smiles, allow_undefined_stereo=True)
+                self.ligand_n_atom = ligand.n_atoms
+                molecules = ligand
+                if not self.solvate:
+                    self.topology.setUnitCellDimensions([3.0]*3)
+            else:
+                molecules = None
+
+            # add water to system using PDBfixer
+            if self.solvate:
+                solvated_pdb = solvate_system(input_file)
+                n_solvent = len(solvated_pdb.positions) - len(pdb.positions)
+                self.topology = solvated_pdb.topology
+                self.positions = solvated_pdb.positions
+                print(f"Adding {int(n_solvent / 3)} solvent molecules...")
+
+            # construct M system using topology and forcefield
+            print("Creating system...")
+            system_generator = SystemGenerator(forcefields=std_ff, small_molecule_forcefield=small_mol_ff,
+                forcefield_kwargs={"constraints": None, "rigidWater": True}, cache="db.json")
+            self.system = system_generator.create_system(self.topology, molecules=molecules)
+
         else:
-            molecules = None
+            self.input_dir = "md_input_gro/"
+            self.n_conf = 1
+            gro = app.GromacsGroFile(f"{self.input_dir}input.gro")
+            top = app.GromacsTopFile(f"{self.input_dir}input.top",
+                                 periodicBoxVectors=gro.getPeriodicBoxVectors())
+            residues = list(top.topology.residues())
+            self.ligand_n_atom = len(list(residues[0].atoms()))
+            self.system = top.createSystem(constraints=None, removeCMMotion=True,
+                                      rigidWater=True)
+            self.positions = gro.positions
+            self.topology = top.topology
 
-        # add water to system using PDBfixer
-        if self.solvate:
-            solvated_pdb = solvate_system(input_file)
-            n_solvent = len(solvated_pdb.positions) - len(pdb.positions)
-            self.topology = solvated_pdb.topology
-            self.positions = solvated_pdb.positions
-            print(f"Adding {int(n_solvent / 3)} solvent molecules...")
-
-        # construct M system using topology and forcefield
-        print("Creating system...")
-        system_generator = SystemGenerator(forcefields=std_ff, small_molecule_forcefield=small_mol_ff,
-            forcefield_kwargs={"constraints": None, "rigidWater": True}, cache="db.json")
-        self.system = system_generator.create_system(self.topology, molecules=molecules)
 
         # get fixed charges (will be overwritten later if predicted by a model)
         if self.ligand:
@@ -165,8 +174,12 @@ class MolecularDynamics():
             if self.type == "enhanced":
                 from openmmplumed import PlumedForce
                 print("Using metadynamics bias...")
-                plumed_script = write_plumed_script(self.unique_torsions)
                 print()
+                if self.CSD != "from_gro":
+                    plumed_script = write_plumed_script(self.unique_torsions)
+                else:
+                    plumed_file = open(f"{self.input_dir}/plumed.dat", "r")
+                    plumed_script = plumed_file.read()
                 print("PLUMED input...")
                 print(plumed_script)
                 self.system.addForce(PlumedForce(plumed_script))
@@ -259,6 +272,7 @@ class MolecularDynamics():
         # loop over conformers TODO: remove this, put outer loop in CSD-MD.py
         for i_conf in range(self.n_conf):
 
+            '''
             if self.ligand:
                 # for first conformer use initial coords and vels defined in setup
                 # for all other conformers reset coords/vels including solvent
@@ -272,11 +286,12 @@ class MolecularDynamics():
                         exit()
                     self.simulation.context.setPositions(pdb.positions)
                     self.simulation.context.setVelocitiesToTemperature(self.temp)
+            '''
 
             if self.ensemble == "NVT":
                 self.simulation.context.setVelocitiesToTemperature(self.temp)
 
-            #TODO: print first pdb structure
+            #TODO: print first structure
 
             print("Performing MD simulation...")
             print("Time (ps) | PE (kcal/mol)")
@@ -477,6 +492,7 @@ def assign_fixed_charges(system, charge_scheme, ligand_n_atom):
         [charge, sigma, epsilon] = nb.getParticleParameters(i)
         if charge_scheme == "am1-bcc":
             fixed_charges[i] = charge / unit.elementary_charge
+            print(fixed_charges[i])
         elif charge_scheme == "from_file":
             fixed_charges[i] = file_charge[i]
         elif charge_scheme == "predicted":

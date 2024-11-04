@@ -15,6 +15,7 @@ def main():
     :return:
     """
     from molecular_dynamics import MolecularDynamics
+    import os, shutil
     import warnings, get_structure
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -23,20 +24,27 @@ def main():
     # TODO: move read_inputs to init method
     simulation.read_inputs()
 
-    if simulation.ligand and not simulation.protein:
-        print(f"Retrieving CSD entry for {simulation.CSD}...")
-        get_structure.ligand(simulation.CSD, simulation)
-        print(f"SMILES notation: {simulation.smiles} ")
-        print(f"Using {simulation.n_conf} conformer(s)...")
+    if simulation.CSD != "from_gro":
+        simulation.input_dir = "md_input/"
+        isExist = os.path.exists(simulation.input_dir)
+        if isExist:
+            shutil.rmtree(simulation.input_dir)
+        os.makedirs(simulation.input_dir)
 
-    if simulation.protein:
-        print("Retrieving PDB...")
-        get_structure.protein(simulation.PDB, simulation)
-        simulation.n_conf = 1
+        if simulation.ligand and not simulation.protein:
+            print(f"Retrieving CSD entry for {simulation.CSD}...")
+            get_structure.ligand(simulation.CSD, simulation)
+            print(f"SMILES notation: {simulation.smiles} ")
+            print(f"Using {simulation.n_conf} conformer(s)...")
 
-        if simulation.ligand:
-            print("Docking...")
-            get_structure.ligand_protein()
+        if simulation.protein:
+            print("Retrieving PDB...")
+            get_structure.protein(simulation.PDB, simulation)
+            simulation.n_conf = 1
+
+            if simulation.ligand:
+                print("Docking...")
+                get_structure.ligand_protein()
 
     print("Setting up MD simulation...")
     simulation.setup()
