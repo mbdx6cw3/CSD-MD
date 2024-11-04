@@ -12,7 +12,6 @@ conda install openmm openmmforcefields pyyaml pdbfixer openmm-plumed
 ...then on CSF (Red Hat linux)
 conda install -c /opt/apps/apps/binapps/ccdc-csds/2024.1/ccdc_conda_channel_py39 Pillow six lxml numpy matplotlib
 conda install -c /opt/apps/apps/binapps/ccdc-csds/2024.1/ccdc_conda_channel_py39 csd-python-api
-conda install openmm openmmforcefields pyyaml pdbfixer openmm-plumed
 export CCDC_LICENSING_CONFIGURATION='lf-server;http://login1:8090'
 
 ...or on local machine (OS(X)):
