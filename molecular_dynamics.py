@@ -100,17 +100,17 @@ class MolecularDynamics():
         """Set up an MD simulation.
         ...
         """
-        from openmm import app
+        from openmm import app, unit
         from openmmforcefields.generators import SystemGenerator
         from openff.toolkit.topology import Molecule
         import warnings
+        import numpy as np
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
         if self.CSD != "from_gro":
             # set name of input file for this system
             if self.ligand and not self.protein:
-                self.topology, self.positions = ccdc_convertor.openmm_topology_and_positions_from_ccdc_molecule(
-                    self.conformers[0])
+                self.topology, self.positions = ccdc_convertor.openmm_topology_and_positions_from_ccdc_molecule(self.conformers[0])
 
             if self.protein and not self.ligand:
                 input_file = f"{self.input_dir}protein.pdb"
@@ -134,6 +134,9 @@ class MolecularDynamics():
                 print("Creating topology...")
                 ligand = Molecule.from_smiles(self.smiles, allow_undefined_stereo=True)
                 self.ligand_n_atom = ligand.n_atoms
+                if self.partial_charges == "from_file":
+                    print("Reading partial charges from file...")
+                    ligand.partial_charges = np.loadtxt("charges.txt") * unit.elementary_charges
                 molecules = ligand
                 if not self.solvate:
                     self.topology.setUnitCellDimensions([3.0]*3)
@@ -167,8 +170,6 @@ class MolecularDynamics():
             self.positions = gro.positions
             self.topology = top.topology
 
-
-        # get fixed charges (will be overwritten later if predicted by a model)
         if self.ligand:
             self.ml_force = None
             self.fixed_charges = assign_fixed_charges(self.system, self.partial_charges, self.ligand_n_atom)
@@ -248,18 +249,6 @@ class MolecularDynamics():
                 elif pairnet_version == 2:
                     model, atoms = load_pairnet_v2(input_dir, self.ligand_n_atom)
 
-                map = os.path.exists(f"{self.pairnet_path}atom_mapping.dat")
-                if map:
-                    # this step is necessary because pairnet models have a specific (arbitrary) atom ordering
-                    # TODO: Ideally would not need a manually created mapping file.
-                    # TODO: For now, can remap atoms in this way because we only have models for a few molecules anyway.
-                    # TODO: This can be made more efficient if either:
-                    # TODO: 1) atom ordering of CCDC outputs can be changed
-                    # TODO: 2) mapping of topology/structure prior to starting simulation
-                    mapping = np.loadtxt(f"{self.pairnet_path}atom_mapping.dat", dtype=int)
-                    csd2pairnet = mapping[:, 0]
-                    pairnet2csd = mapping[:, 1]
-
             charges = self.fixed_charges
 
             # open files for storing PairNetOps compatible datasets
@@ -271,24 +260,9 @@ class MolecularDynamics():
             # open files for storing PairNetOps compatible datasets
             data_files = [f1, f2, f3, f4]
 
-        # loop over conformers TODO: remove this, put outer loop in CSD-MD.py
+        # loop over conformers
+        # TODO: remove this, put outer loop in CSD-MD.py
         for i_conf in range(self.n_conf):
-
-            '''
-            if self.ligand:
-                # for first conformer use initial coords and vels defined in setup
-                # for all other conformers reset coords/vels including solvent
-                print(f"Conformer number: {i_conf+1}")
-                if i_conf > 0:
-                    input_file = f"{self.input_dir}ligand_{i_conf}.pdb"
-                    pdb = get_pdb(input_file)
-                    if self.solvate:
-                        print("ERROR - cannot yet simulate multiple solvated conformers.")
-                        print("Try standard solvated conformer or multi-conformer in gas phase instead.")
-                        exit()
-                    self.simulation.context.setPositions(pdb.positions)
-                    self.simulation.context.setVelocitiesToTemperature(self.temp)
-            '''
 
             if self.ensemble == "NVT":
                 self.simulation.context.setVelocitiesToTemperature(self.temp)
@@ -308,19 +282,12 @@ class MolecularDynamics():
                     coords = self.simulation.context.getState(getPositions=True). \
                         getPositions(asNumpy=True).value_in_unit(unit.angstrom)[:self.ligand_n_atom]
 
-                    if map:
-                        coords = coords[csd2pairnet] # map CSD to pairnet atom order
-
                     prediction = get_pairnet_prediction(model, atoms, coords)
                     ML_forces = prediction[0] * unit.kilocalories_per_mole / unit.angstrom
                     ML_forces = np.reshape(ML_forces, (-1, 3))
-                    charges = prediction[2].T
-
-                    if map:
-                        ML_forces = ML_forces[pairnet2csd] # map pairnet back to CSD
-                        charges = charges[pairnet2csd]
 
                     if self.partial_charges == "predicted":
+                        charges = prediction[2].T
                         charges = set_charges(charges, self.system, self.simulation,
                             self.ligand_n_atom, self.net_charge)
 
@@ -492,15 +459,11 @@ def assign_fixed_charges(system, charge_scheme, ligand_n_atom):
     nb = [f for f in system.getForces() if isinstance(f, NonbondedForce)][0]
     for i in range(ligand_n_atom):
         [charge, sigma, epsilon] = nb.getParticleParameters(i)
-        if charge_scheme == "am1-bcc":
-            fixed_charges[i] = charge / unit.elementary_charge
-            print(fixed_charges[i])
-        elif charge_scheme == "from_file":
+        if charge_scheme == "from_file":
             fixed_charges[i] = file_charge[i]
-        elif charge_scheme == "predicted":
-            fixed_charges[i] = 0.0
-        nb.setParticleParameters(i, fixed_charges[i] *
-            unit.elementary_charge, sigma, epsilon)
+        else:
+            fixed_charges[i] = charge / unit.elementary_charge
+        nb.setParticleParameters(i, fixed_charges[i] * unit.elementary_charge, sigma, epsilon)
     return fixed_charges
 
 
