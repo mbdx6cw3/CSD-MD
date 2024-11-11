@@ -22,9 +22,7 @@ def ligand(identifier, simulation):
     print("Generating conformers...")
     conformers = conformer_generator.generate(ligand)
     simulation.n_conf = len(conformers)
-    for i_conf, c in enumerate(conformers):
-        with MoleculeWriter(f"{simulation.input_dir}/ligand_{i_conf}.pdb") as mol_writer:
-            mol_writer.write(c.molecule)
+    simulation.conformers = [c.molecule for c in conformers]
 
     if simulation.type == "enhanced":
         geometry_analysed_mol = get_torsions(conformers[0].molecule)

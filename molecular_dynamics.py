@@ -1,3 +1,5 @@
+import ccdc_convertor
+
 class MolecularDynamics():
 
     import warnings
@@ -107,25 +109,25 @@ class MolecularDynamics():
         if self.CSD != "from_gro":
             # set name of input file for this system
             if self.ligand and not self.protein:
-                input_file = f"{self.input_dir}ligand_0.pdb"
+                self.topology, self.positions = ccdc_convertor.openmm_topology_and_positions_from_ccdc_molecule(
+                    self.conformers[0])
 
             if self.protein and not self.ligand:
                 input_file = f"{self.input_dir}protein.pdb"
+                pdb = get_pdb(input_file)
+                self.topology = pdb.topology
+                self.positions = pdb.positions
 
             if self.ligand and self.protein:
                 input_file = f"{self.input_dir}protein-ligand.pdb"
                 self.smiles = "CC(C)Cc1ccc(cc1)C(C)C(O)=O"
-
-            # retrieve pdb file
-            pdb = get_pdb(input_file)
+                pdb = get_pdb(input_file)
+                self.topology = pdb.topology
+                self.positions = pdb.positions
 
             # define force field
             std_ff = ["amber/ff14SB.xml", "amber/tip3p_standard.xml"]
             small_mol_ff = "gaff-2.11"
-
-            # get structure and topology from pdb file
-            self.topology = pdb.topology
-            self.positions = pdb.positions
 
             # create topology for non-standard residue from SMILES
             if self.ligand:
