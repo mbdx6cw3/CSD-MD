@@ -222,12 +222,9 @@ class MolecularDynamics():
         """
         from openmm import unit
         import os
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-        import tensorflow as tf
         import numpy as np
         import time as timer
 
-        tf.get_logger().setLevel('ERROR')
         start_time = timer.time()
 
         self.time = self.time*unit.nanoseconds
@@ -237,6 +234,10 @@ class MolecularDynamics():
         if self.ligand:
 
             if self.pairnet_path != "none":
+                os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+                import tensorflow as tf
+                tf.get_logger().setLevel('ERROR')
+
                 input_dir = f"{self.pairnet_path}trained_model/"
                 print(f"Using pairnet model: {input_dir}")
                 isExist = os.path.exists(input_dir)
