@@ -171,8 +171,10 @@ class MolecularDynamics():
             self.topology = top.topology
 
         if self.ligand:
+
             self.ml_force = None
             self.fixed_charges = assign_fixed_charges(self.system, self.partial_charges, self.ligand_n_atom)
+
             # add metadynamics force to system
             if self.type == "enhanced":
                 from openmmplumed import PlumedForce
@@ -206,6 +208,11 @@ class MolecularDynamics():
             self.integrator = get_integrator(self.temp, self.dt, self.ensemble, self.pairnet_path)
             self.simulation = app.Simulation(self.topology, self.system, self.integrator)
             self.simulation.context.setPositions(minimised_coords)
+
+        # fix initial velocity seed for now
+        # TODO: this should be changed back to random seed eventually
+        if self.ensemble == "NVT":
+            self.simulation.context.setVelocitiesToTemperature(self.temp, 1)
 
         self.simulation.reporters.append(app.PDBReporter("output.pdb", 1000,
                                     enforcePeriodicBox=True))
@@ -261,8 +268,8 @@ class MolecularDynamics():
         # TODO: remove this, put outer loop in CSD-MD.py
         for i_conf in range(self.n_conf):
 
-            if self.ensemble == "NVT":
-                self.simulation.context.setVelocitiesToTemperature(self.temp)
+            #if self.ensemble == "NVT":
+             #   self.simulation.context.setVelocitiesToTemperature(self.temp)
 
             #TODO: print first structure
 
@@ -305,10 +312,7 @@ class MolecularDynamics():
                             getForces(asNumpy=True).in_units_of(unit.kilocalories_per_mole / unit.angstrom)
 
                         if self.pairnet_path != "none":
-                            if pairnet_version == 1:
-                                energy = prediction[2][0][0]
-                            elif pairnet_version == 2:
-                                energy = prediction[1][0][0]
+                            energy = prediction[1][0][0]
 
                         write_dataset(self.ligand_n_atom, coords, forces, energy, charges, data_files)
 
