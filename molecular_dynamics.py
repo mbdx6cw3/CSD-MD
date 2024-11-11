@@ -244,11 +244,7 @@ class MolecularDynamics():
                 if not isExist:
                     print("ERROR. Previously trained model could not be located.")
                     exit()
-                pairnet_version = 2
-                if pairnet_version == 1:
-                    model, atoms = load_pairnet_v1(input_dir)
-                elif pairnet_version == 2:
-                    model, atoms = load_pairnet_v2(input_dir, self.ligand_n_atom)
+                model, atoms = load_pairnet_v2(input_dir, self.ligand_n_atom)
 
             charges = self.fixed_charges
 
@@ -333,26 +329,6 @@ class MolecularDynamics():
             f3.close()
             f4.close()
         return None
-
-
-def load_pairnet_v1(input_dir):
-    """
-
-    :param input_dir: path to pairnet model
-    :returns: model - pairnet model
-              atoms - list of atoms
-    """
-    from network_v1 import Network
-    import numpy as np
-    print("Loading a previously trained model...")
-    atoms = np.loadtxt(f"{input_dir}atoms.txt", dtype=np.float32).reshape(-1)
-    ann_params = Network.read_params(f"{input_dir}ann_params.txt")
-    prescale = np.loadtxt(f"{input_dir}prescale.txt", dtype=np.float64).reshape(-1)
-    network = Network()
-    model = network.build(len(atoms), ann_params, prescale)
-    model.summary()
-    model.load_weights(f"{input_dir}best_ever_model").expect_partial()
-    return model, atoms
 
 
 def load_pairnet_v2(input_dir, ligand_n_atom):
