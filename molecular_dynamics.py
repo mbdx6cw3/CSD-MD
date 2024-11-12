@@ -88,9 +88,6 @@ class MolecularDynamics():
                 print("Resetting charge scheme.")
                 self.partial_charges = "none"
 
-        #TODO: where should this be read in?
-        self.net_charge = 0.0
-
         self.output_dir = "md_data/"
         isExist = os.path.exists(self.output_dir)
         if isExist:
@@ -291,8 +288,11 @@ class MolecularDynamics():
 
                     if self.partial_charges == "predicted":
                         charges = prediction[2].T
+                        if i == 0:
+                            net_charge = sum(charges[:,0])
+                            net_charge = round(net_charge)
                         charges = set_charges(charges, self.system, self.simulation,
-                            self.ligand_n_atom, self.net_charge)
+                            self.ligand_n_atom, net_charge)
 
                     for j in range(self.ligand_n_atom):
                         self.ml_force.setParticleParameters(j, j, ML_forces[j])
