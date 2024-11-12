@@ -1,4 +1,7 @@
+import sys
+resetopenflags = sys.getdlopenflags()
 from ccdc.molecule import Molecule as CCDCMolecule
+sys.setdlopenflags(resetopenflags)
 
 from openmm import Vec3
 from openmm.app.topology import Topology as OpenMMTopology
