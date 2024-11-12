@@ -1,4 +1,8 @@
 import ccdc_convertor
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+import tensorflow as tf
+tf.get_logger().setLevel('ERROR')
 
 class MolecularDynamics():
 
@@ -108,7 +112,7 @@ class MolecularDynamics():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
         if self.CSD != "from_gro":
-            # set name of input file for this system
+
             if self.ligand and not self.protein:
                 self.topology, self.positions = ccdc_convertor.openmm_topology_and_positions_from_ccdc_molecule(self.conformers[0])
 
@@ -144,9 +148,12 @@ class MolecularDynamics():
                 molecules = None
 
             # add water to system using PDBfixer
+            # TODO: can't yet use CCDC->OpenMM conversion function for ionised system
+            # TODO: can't yet add counterions to neutralise system
             if self.solvate:
+                input_file = f"{self.input_dir}ligand.pdb"
                 solvated_pdb = solvate_system(input_file)
-                n_solvent = len(solvated_pdb.positions) - len(pdb.positions)
+                n_solvent = len(solvated_pdb.positions) - len(self.positions)
                 self.topology = solvated_pdb.topology
                 self.positions = solvated_pdb.positions
                 print(f"Adding {int(n_solvent / 3)} solvent molecules...")
@@ -228,22 +235,17 @@ class MolecularDynamics():
         :return:
         """
         from openmm import unit
-        import os
         import numpy as np
         import time as timer
-
         start_time = timer.time()
 
         self.time = self.time*unit.nanoseconds
         self.dt = self.dt*unit.femtoseconds
-        n_steps = int(self.time/self.dt)+1
+        n_steps = int(self.time/self.dt)+2
 
         if self.ligand:
 
             if self.pairnet_path != "none":
-                os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-                import tensorflow as tf
-                tf.get_logger().setLevel('ERROR')
 
                 input_dir = f"{self.pairnet_path}trained_model/"
                 print(f"Using pairnet model: {input_dir}")
@@ -267,9 +269,6 @@ class MolecularDynamics():
         # loop over conformers
         # TODO: remove this, put outer loop in CSD-MD.py
         for i_conf in range(self.n_conf):
-
-            #if self.ensemble == "NVT":
-             #   self.simulation.context.setVelocitiesToTemperature(self.temp)
 
             #TODO: print first structure
 
