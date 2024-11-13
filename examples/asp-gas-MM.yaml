@@ -1,0 +1,13 @@
+name: Aspirin Gas Phase MD Simulation with MM Potential
+system type: ligand
+CSD identifier: ACSALA
+PDB identifier: 4PH9
+analyse torsions: no
+simulation type: standard
+pair-net model path: none
+partial charges: am1-bcc
+solvate system: no
+ensemble: NVT
+temperature (K): 300.0
+simulation time (ns): 0.010
+timestep (fs): 1.0
