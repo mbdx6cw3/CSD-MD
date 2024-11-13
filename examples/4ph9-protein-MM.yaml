@@ -1,7 +1,7 @@
 name: COX-2 Protein Simulation with MM Potential
 system type: protein
-CSD identifier: 4PH9
-PDB identifier: from_file
+CSD identifier: n/a
+PDB identifier: 4PH9
 analyse torsions: no
 simulation type: standard
 pair-net model path: none
