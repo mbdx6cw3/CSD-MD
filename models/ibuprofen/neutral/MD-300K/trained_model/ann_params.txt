@@ -1,0 +1,29 @@
+# input parameters for loading, training or testing a neural network
+# activation functions (e.g. "silu")
+activations  = silu
+
+# number of epochs
+epochs       = 10000
+
+# number of layers
+n_layers     = 3
+
+# number of nodes
+n_nodes      = 360, 360, 360
+
+# size of train, validation and test sets
+n_data       = 8000, 1000, 1000
+
+# define custom loss function weights (forces, energy, charges)
+loss_weights = 0.74, 0.01, 0.25
+
+charge_scheme = 1
+norm_scheme = force
+batch_size = 32
+
+# set learning rate parameters
+init_lr      = 5e-4
+min_lr       = 1e-6
+lr_patience  = 2000
+lr_factor    = 0.5
+
