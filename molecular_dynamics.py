@@ -120,11 +120,7 @@ class MolecularDynamics():
                 self.positions = pdb.positions
 
             if self.ligand and self.protein:
-                input_file = f"{self.input_dir}protein-ligand.pdb"
-                self.smiles = "CC(C)Cc1ccc(cc1)C(C)C(O)=O"
-                pdb = get_pdb(input_file)
-                self.topology = pdb.topology
-                self.positions = pdb.positions
+                self.topology, self.positions = ccdc_convertor.openmm_topology_and_positions_from_ccdc_molecule(self.complexed)
 
             # define force field
             std_ff = ["amber/ff14SB.xml", "amber/tip3p_standard.xml"]

@@ -21,7 +21,7 @@ def main():
 
     print("Reading input parameters...")
     simulation = MolecularDynamics()
-    # TODO: move read_inputs to init method
+    # TODO: move read_inputs to init method?
     simulation.read_inputs()
 
     if simulation.CSD != "from_gro":
@@ -36,15 +36,12 @@ def main():
             get_structure.ligand(simulation.CSD, simulation)
             print(f"SMILES notation: {simulation.smiles} ")
             print(f"Using {simulation.n_conf} conformer(s)...")
-
-        if simulation.protein:
+        elif simulation.protein and not simulation.ligand:
             print("Retrieving PDB...")
             get_structure.protein(simulation.PDB, simulation)
             simulation.n_conf = 1
-
-            if simulation.ligand:
-                print("Docking...")
-                get_structure.ligand_protein()
+        else:
+            get_structure.docking(simulation)
 
     print("Setting up MD simulation...")
     simulation.setup()

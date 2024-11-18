@@ -15,8 +15,10 @@ def ligand(identifier, simulation):
     ligand = entry.molecule
     simulation.smiles = ligand.smiles
     conformer_generator = ConformerGenerator()
+    '''
     if simulation.type != "multi-conformer":
         conformer_generator.settings.max_conformers = 1
+    '''
 
     print("Generating conformers...")
     conformers = conformer_generator.generate(ligand)
@@ -80,12 +82,89 @@ def protein(identifier, simulation):
     return None
 
 
-def docking():
-    # TODO: read in protein-unfixed and ligand pdbs from md_input
-    # TODO: here we will do some protein-ligand docking to generate initial structure
-    # TODO: will need to use the unfixed pdb file because we need the native ligand to define binding site
-    # TODO: then tidy up protein structure and recombine with ligand
-    # TODO: write new PDB file for the ligand and protein
+def docking(simulation):
+    # Docking predicts the binding conformation of small molecule ligands to the
+    # targetted protein binding site.
+    # ccdc.docking module provides an API to protein-ligand docking.
+    # contains a single class, Docker, used to specify the desired docking.
+    # Docker.dock() performs the docking.
+    # Molecular recognition of receptor sites using a genetic algorithm
+    # with a description of desolvation”, G. Jones, P. Willett and R. C. Glen,
+    # J. Mol. Biol., 245, 43-53, 1995,
+
+    # Requires 1 or more protein files and 1 or more ligand files and binding site definition.
+    # Ensemble docking = more than 1 protein provided.
+    # GOLD uses genetic algorithm to pick the best protein for docking.
+    import os
+    import shutil
+    from pathlib import Path
+    from ccdc.docking import Docker
+    from ccdc.io import MoleculeReader, EntryWriter
+
+    docker = Docker()
+    settings = docker.settings
+
+    input_dir = Path('input_files').absolute()
+    target_dir = input_dir / "target"
+
+    # get the protein structure and load into docker settings
+    protein_file = target_dir / "protein.pdb"
+    settings.add_protein_file(str(protein_file))
+
+    # load the native ligand and use it to define the binding site
+    native_ligand_file = target_dir / "native_ligand.pdb"
+    native_ligand = MoleculeReader(str(native_ligand_file))[0]
+    protein = settings.proteins[0]
+
+    # this defines a binding site as within a radius of 6A from the ligand
+    settings.binding_site = settings.BindingSiteFromLigand(protein,
+                                                           native_ligand)
+
+    # define docking parameters including fitness function
+    settings.fitness_function = 'plp'
+    settings.autoscale = 10.
+    settings.early_termination = False
+
+    settings.output_file = 'docked_ligands.mol2'
+
+    # select ligands to dock and number of docking runs per ligand
+    ligand_file = input_dir / "ligand.pdb"
+    settings.add_ligand_file(str(ligand_file), 10)
+
+    # create output directory
+    output_dir = Path("docking_output")
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    output_dir.mkdir()
+    os.chdir(output_dir)
+
+    # launch the docker
+    results = docker.dock()
+    print(results.return_code)
+    batch_conf_file = settings.conf_file
+
+    settings = Docker.Settings.from_file(batch_conf_file)
+    results = Docker.Results(settings)
+
+    ligands = results.ligands
+    first_dock = ligands[0]
+    "Gold.PLP.Fitness" in first_dock.attributes
+
+    print(first_dock.fitness())
+    print(first_dock.fitness(settings.fitness_function))
+    print(first_dock.scoring_term())
+    print(first_dock.scoring_term("plp", "chemscore", "hbond"))
+    print(first_dock.hbonds())
+    complexed = results.make_complex(ligands[0])
+    complexed.remove_unknown_atoms()
+    print(len(protein.ligands))
+    file_path = f"complexed.pdb"
+
+    with EntryWriter(file_path) as writer:
+        writer.write(complexed)
+
+    simulation.complexed = complexed
+
     return None
 
 
