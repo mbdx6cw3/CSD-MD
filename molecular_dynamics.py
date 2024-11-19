@@ -48,13 +48,6 @@ class MolecularDynamics():
             self.analyse_torsions = False
 
         self.partial_charges = md_params.get("partial charges")
-        # TODO: tidy up this check
-        if self.partial_charges != "am1-bcc" and self.partial_charges != "from_file" \
-                and self.partial_charges != "predicted":
-            print("ERROR - charge scheme not recognised.")
-            print("Charge scheme must either be 'am1-bcc', 'from_file' or 'predicted'")
-            print("Switching to 'am1-bcc'")
-            self.partial_charges == "am1-bcc"
 
         # run some checks
         system_type = md_params.get("system type")
@@ -63,6 +56,15 @@ class MolecularDynamics():
             print("ERROR - system type not allowed.")
             print("Allowed system types: ligand, protein or ligand-protein")
             exit()
+
+        # TODO: tidy up this check
+        if system_type== "ligand":
+            if self.partial_charges != "am1-bcc" and self.partial_charges != "from_file" \
+                    and self.partial_charges != "predicted":
+                print("ERROR - charge scheme not recognised.")
+                print("Charge scheme must either be 'am1-bcc', 'from_file' or 'predicted'")
+                print("Switching to 'am1-bcc'")
+                self.partial_charges == "am1-bcc"
 
         if system_type == "ligand" or system_type == "ligand-protein":
             self.ligand = True
@@ -110,19 +112,30 @@ class MolecularDynamics():
 
         if self.CSD != "from_gro":
 
+            # ligand only simulation - ccdc.molecule from conformer generation
             if self.ligand and not self.protein:
                 self.topology, self.positions = ccdc_convertor.openmm_topology_and_positions_from_ccdc_molecule(self.conformers[0])
 
+            # protein only simulation - from ccdc.protein
             if self.protein and not self.ligand:
-                input_file = f"{self.input_dir}protein.pdb"
-                pdb = get_pdb(input_file)
+                # TODO: conversion function for protein with chains, residues etc.
+                pdb = get_pdb(f"docking_input/protein.pdb")
                 self.topology = pdb.topology
                 self.positions = pdb.positions
 
+            # ligand-protein - ligand from first docked pose, protein from ccdc.protein
             if self.ligand and self.protein:
-                self.topology, self.positions = ccdc_convertor.openmm_topology_and_positions_from_ccdc_molecule(self.complexed)
+                pdb = get_pdb(f"docking_input/ligand.pdb")
+                ligand_topology = pdb.topology
+                ligand_positions = pdb.positions
+                pdb = get_pdb(f"docking_input/protein.pdb")
+                protein_topology = pdb.topology
+                protein_positions = pdb.positions
+                #protein_topology, protein_positions = ccdc_convertor.openmm_topology_and_positions_from_ccdc_molecule(self.protein)
+                self.topology, self.positions = merge_topology(ligand_topology, ligand_positions, protein_topology, protein_positions)
+                self.smiles = "CC(C)Cc1ccc(cc1)C(C)C(=O)[O-]"
 
-            # define force field
+             # define force field
             std_ff = ["amber/ff14SB.xml", "amber/tip3p_standard.xml"]
             small_mol_ff = "gaff-2.11"
 
@@ -142,7 +155,7 @@ class MolecularDynamics():
 
             # add water to system using PDBfixer
             # TODO: can't yet use CCDC->OpenMM conversion function for ionised system
-            # TODO: can't yet add counterions to neutralise system
+            # TODO: can't yet add counterions to neutralise system either
             if self.solvate:
                 input_file = f"{self.input_dir}ligand.pdb"
                 solvated_pdb = solvate_system(input_file)
@@ -259,64 +272,59 @@ class MolecularDynamics():
             # open files for storing PairNetOps compatible datasets
             data_files = [f1, f2, f3, f4]
 
-        # loop over conformers
-        # TODO: remove this, put outer loop in CSD-MD.py
-        for i_conf in range(self.n_conf):
+        #TODO: print first structure
+        print("Performing MD simulation...")
+        print("Time (ps) | PE (kcal/mol)")
+        for i in range(n_steps):
 
-            #TODO: print first structure
+            if self.pairnet_path != "none":
 
-            print("Performing MD simulation...")
-            print("Time (ps) | PE (kcal/mol)")
-            for i in range(n_steps):
-
-                if self.pairnet_path != "none":
-
-                    # this stops us running out of memory
-                    if (i % 1000) == 0:
-                        tf.keras.backend.clear_session()
-
-                    coords = self.simulation.context.getState(getPositions=True). \
-                        getPositions(asNumpy=True).value_in_unit(unit.angstrom)[:self.ligand_n_atom]
-
-                    prediction = get_pairnet_prediction(model, atoms, coords)
-                    ML_forces = prediction[0] * unit.kilocalories_per_mole / unit.angstrom
-                    ML_forces = np.reshape(ML_forces, (-1, 3))
-
-                    if self.partial_charges == "predicted":
-                        charges = prediction[2].T
-                        if i == 0:
-                            net_charge = sum(charges[:,0])
-                            net_charge = round(net_charge)
-                        charges = set_charges(charges, self.system, self.simulation,
-                            self.ligand_n_atom, net_charge)
-
-                    for j in range(self.ligand_n_atom):
-                        self.ml_force.setParticleParameters(j, j, ML_forces[j])
-                    self.ml_force.updateParametersInContext(self.simulation.context)
-
-                # every 1000 steps save data for PairNetOps compatible dataset
+                # this stops us running out of memory
                 if (i % 1000) == 0:
+                    tf.keras.backend.clear_session()
 
-                    state = self.simulation.context.getState(getEnergy=True)
-                    energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
+                coords = self.simulation.context.getState(getPositions=True). \
+                    getPositions(asNumpy=True).value_in_unit(unit.angstrom)[:self.ligand_n_atom]
 
-                    if self.ligand:
-                        coords = self.simulation.context.getState(getPositions=True). \
-                            getPositions(asNumpy=True).value_in_unit(unit.angstrom)
-                        forces = self.simulation.context.getState(getForces=True). \
-                            getForces(asNumpy=True).in_units_of(unit.kilocalories_per_mole / unit.angstrom)
+                prediction = get_pairnet_prediction(model, atoms, coords)
+                ML_forces = prediction[0] * unit.kilocalories_per_mole / unit.angstrom
+                ML_forces = np.reshape(ML_forces, (-1, 3))
 
-                        if self.pairnet_path != "none":
-                            energy = prediction[1][0][0]
+                if self.partial_charges == "predicted":
+                    charges = prediction[2].T
+                    if i == 0:
+                        net_charge = sum(charges[:,0])
+                        net_charge = round(net_charge)
+                    charges = set_charges(charges, self.system, self.simulation,
+                        self.ligand_n_atom, net_charge)
 
-                        write_dataset(self.ligand_n_atom, coords, forces, energy, charges, data_files)
+                for j in range(self.ligand_n_atom):
+                    self.ml_force.setParticleParameters(j, j, ML_forces[j])
+                self.ml_force.updateParametersInContext(self.simulation.context)
 
-                    time = self.simulation.context.getState().getTime(). \
-                        value_in_unit(unit.picoseconds)
-                    print(f"{time:9.1f} | {energy:13.2f}")
+            # every 1000 steps save data for PairNetOps compatible dataset
+            if (i % 1000) == 0:
 
-                # advance trajectory one timestep
-                self.simulation.step(1)
+                state = self.simulation.context.getState(getEnergy=True)
+                energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
+
+                if self.ligand:
+                    coords = self.simulation.context.getState(getPositions=True). \
+                        getPositions(asNumpy=True).value_in_unit(unit.angstrom)
+                    forces = self.simulation.context.getState(getForces=True). \
+                        getForces(asNumpy=True).in_units_of(unit.kilocalories_per_mole / unit.angstrom)
+
+                    if self.pairnet_path != "none":
+                        energy = prediction[1][0][0]
+
+                    write_dataset(self.ligand_n_atom, coords, forces, energy, charges, data_files)
+
+                time = self.simulation.context.getState().getTime(). \
+                    value_in_unit(unit.picoseconds)
+                print(f"{time:9.1f} | {energy:13.2f}")
+
+            # advance trajectory one timestep
+            self.simulation.step(1)
 
         end_time = timer.time()
         run_time = end_time - start_time
@@ -362,8 +370,6 @@ def get_pairnet_prediction(model, atoms, coords):
 
 def get_pdb(filename):
     from openmm import app
-    # TODO: ***CONVERSION FUNCTIONS***
-    # TODO: This is where the coordinates are read in.
     pdb = app.PDBFile(filename)
     return pdb
 
@@ -567,4 +573,11 @@ def set_charges(predicted_charges, system, simulation, n_atom, net_charge):
     nbforce.updateParametersInContext(simulation.context)
 
     return corrected_charges
+
+
+def merge_topology(topology_1, positions_1, topology_2, positions_2):
+    from openmm import app
+    modeller = app.Modeller(topology_1, positions_1)
+    modeller.add(topology_2, positions_2)
+    return modeller.topology, modeller.positions
 

@@ -59,73 +59,65 @@ def ligand(identifier, simulation):
 
 
 def protein(identifier, simulation):
-    from openmm import app
-    from pdbfixer import PDBFixer
-    if identifier == "from_file":
-        fixer = PDBFixer(filename="input.pdb")
+    import sys
+    if simulation.PDB == "from_file":
+        resetopenflags = sys.getdlopenflags()
+        from ccdc.protein import Protein
+        sys.setdlopenflags(resetopenflags)
+        # TODO: CCDC protein - to be converted to OpenMM object
+        simulation.protein = Protein.from_file("docking_input/protein.pdb")
     else:
+        from openmm import app
+        from pdbfixer import PDBFixer
         fixer = PDBFixer(pdbid=identifier)
-    # will also need unfixed structure for docking if protein-ligand simulation
-    if simulation.ligand:
+        # will also need unfixed structure for docking if protein-ligand simulation
+        if simulation.ligand:
+            app.PDBFile.writeFile(fixer.topology, fixer.positions,
+                open(f"{simulation.input_dir}/protein-unfixed.pdb", "w"))
+        print("Fixing PDB file...")
+        fixer.findMissingResidues()
+        fixer.findNonstandardResidues()
+        fixer.replaceNonstandardResidues()
+        fixer.removeHeterogens(False)
+        fixer.findMissingAtoms()
+        fixer.addMissingAtoms()
+        fixer.addMissingHydrogens(7.0)
         app.PDBFile.writeFile(fixer.topology, fixer.positions,
-            open(f"{simulation.input_dir}/protein-unfixed.pdb", "w"))
-    print("Fixing PDB file...")
-    fixer.findMissingResidues()
-    fixer.findNonstandardResidues()
-    fixer.replaceNonstandardResidues()
-    fixer.removeHeterogens(False)
-    fixer.findMissingAtoms()
-    fixer.addMissingAtoms()
-    fixer.addMissingHydrogens(7.0)
-    app.PDBFile.writeFile(fixer.topology, fixer.positions,
-        open(f"{simulation.input_dir}/protein.pdb", "w"))
+            open(f"{simulation.input_dir}/protein.pdb", "w"))
     return None
 
 
 def docking(simulation):
-    # Docking predicts the binding conformation of small molecule ligands to the
-    # targetted protein binding site.
-    # ccdc.docking module provides an API to protein-ligand docking.
-    # contains a single class, Docker, used to specify the desired docking.
-    # Docker.dock() performs the docking.
-    # Molecular recognition of receptor sites using a genetic algorithm
-    # with a description of desolvation”, G. Jones, P. Willett and R. C. Glen,
-    # J. Mol. Biol., 245, 43-53, 1995,
-
-    # Requires 1 or more protein files and 1 or more ligand files and binding site definition.
-    # Ensemble docking = more than 1 protein provided.
-    # GOLD uses genetic algorithm to pick the best protein for docking.
-    import os
-    import shutil
+    import os, sys, shutil
     from pathlib import Path
+    resetopenflags = sys.getdlopenflags()
     from ccdc.docking import Docker
     from ccdc.io import MoleculeReader, EntryWriter
+    sys.setdlopenflags(resetopenflags)
 
     docker = Docker()
     settings = docker.settings
 
-    input_dir = Path('input_files').absolute()
-    target_dir = input_dir / "target"
+    input_dir = Path("docking_input").absolute()
 
     # get the protein structure and load into docker settings
-    protein_file = target_dir / "protein.pdb"
+    protein_file = input_dir / "protein.pdb"
     settings.add_protein_file(str(protein_file))
 
     # load the native ligand and use it to define the binding site
-    native_ligand_file = target_dir / "native_ligand.pdb"
+    native_ligand_file = input_dir / "native_ligand.pdb"
     native_ligand = MoleculeReader(str(native_ligand_file))[0]
     protein = settings.proteins[0]
 
     # this defines a binding site as within a radius of 6A from the ligand
-    settings.binding_site = settings.BindingSiteFromLigand(protein,
-                                                           native_ligand)
+    settings.binding_site = settings.BindingSiteFromLigand(protein, native_ligand)
 
     # define docking parameters including fitness function
-    settings.fitness_function = 'plp'
+    settings.fitness_function = "plp"
     settings.autoscale = 10.
     settings.early_termination = False
 
-    settings.output_file = 'docked_ligands.mol2'
+    settings.output_file = "docked_ligands.mol2"
 
     # select ligands to dock and number of docking runs per ligand
     ligand_file = input_dir / "ligand.pdb"
@@ -158,12 +150,13 @@ def docking(simulation):
     complexed = results.make_complex(ligands[0])
     complexed.remove_unknown_atoms()
     print(len(protein.ligands))
-    file_path = f"complexed.pdb"
 
-    with EntryWriter(file_path) as writer:
+    with EntryWriter("complexed.pdb") as writer:
         writer.write(complexed)
 
+    # TODO: CCDC complex - to be converted to OpenMM object
     simulation.complexed = complexed
+    os.chdir("..")
 
     return None
 
