@@ -1,3 +1,5 @@
+import os
+
 def ligand(identifier, simulation):
     """
 
@@ -64,7 +66,6 @@ def protein(identifier, simulation):
         resetopenflags = sys.getdlopenflags()
         from ccdc.protein import Protein
         sys.setdlopenflags(resetopenflags)
-        # TODO: CCDC protein - to be converted to OpenMM object
         simulation.protein = Protein.from_file("docking_input/protein.pdb")
     else:
         from openmm import app
