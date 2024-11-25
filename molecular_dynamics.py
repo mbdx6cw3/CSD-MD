@@ -118,10 +118,7 @@ class MolecularDynamics():
 
             # protein only simulation - from ccdc.protein
             if self.protein and not self.ligand:
-                # TODO: conversion function for protein with chains, residues etc.
-                pdb = get_pdb(f"docking_input/protein.pdb")
-                self.topology = pdb.topology
-                self.positions = pdb.positions
+                self.topology, self.positions = ccdc_convertor.openmm_topology_and_positions_from_ccdc_molecule(self.protein)
 
             # ligand-protein - ligand from first docked pose, protein from ccdc.protein
             if self.ligand and self.protein:
