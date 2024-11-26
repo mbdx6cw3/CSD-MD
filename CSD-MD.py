@@ -35,12 +35,11 @@ def main():
             print(f"Retrieving CSD entry for {simulation.CSD}...")
             get_structure.ligand(simulation.CSD, simulation)
             print(f"SMILES notation: {simulation.smiles} ")
-            print(f"Using {simulation.n_conf} conformer(s)...")
         elif simulation.protein and not simulation.ligand:
             print("Retrieving PDB...")
-            get_structure.get_protein(simulation.PDB, simulation)
+            get_structure.get_protein(simulation)
             print("Fixing PDB...")
-            get_structure.fix_protein(simulation)
+            get_structure.fix_protein_pdbfixer(simulation)
         else:
             get_structure.docking(simulation)
 

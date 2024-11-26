@@ -60,34 +60,40 @@ def ligand(identifier, simulation):
     return None
 
 
-def get_protein(identifier, simulation):
+def get_protein(simulation):
     import sys
-    if simulation.PDB == "from_file":
-        # this is required to reset paths due to bug in CSD-Python-API
-        resetopenflags = sys.getdlopenflags()
-        from ccdc.protein import Protein
-        sys.setdlopenflags(resetopenflags)
-        simulation.protein = Protein.from_file("docking_input/protein.pdb")
-    else:
-        from openmm import app
-        from pdbfixer import PDBFixer
-        simulation.fixer = PDBFixer(pdbid=identifier)
-        app.PDBFile.writeFile(simulation.fixer.topology, simulation.fixer.positions,
-            open(f"{simulation.input_dir}/protein-unfixed.pdb", "w"))
+    import urllib.request
+    resetopenflags = sys.getdlopenflags()
+    sys.setdlopenflags(resetopenflags)
+    URL = f"https://files.rcsb.org/download/{simulation.PDB}.pdb"
+    file_path = f"{simulation.input_dir}protein-unsanitised.pdb"
+    urllib.request.urlretrieve(URL, file_path)
+    return None
+
+def fix_protein_pdbfixer(simulation):
+    from openmm import app
+    from pdbfixer import PDBFixer
+    file_path = f"{simulation.input_dir}protein-unsanitised.pdb"
+    fixer = PDBFixer(filename=file_path)
+    fixer.findMissingResidues()
+    fixer.findNonstandardResidues()
+    fixer.replaceNonstandardResidues()
+    fixer.removeHeterogens(False)
+    fixer.findMissingAtoms()
+    fixer.addMissingAtoms()
+    fixer.addMissingHydrogens(7.0)
+    app.PDBFile.writeFile(fixer.topology, fixer.positions,
+        open(f"{simulation.input_dir}/protein.pdb", "w"))
     return None
 
 
-def fix_protein(simulation):
-    from openmm import app
-    simulation.fixer.findMissingResidues()
-    simulation.fixer.findNonstandardResidues()
-    simulation.fixer.replaceNonstandardResidues()
-    simulation.fixer.removeHeterogens(False)
-    simulation.fixer.findMissingAtoms()
-    simulation.fixer.addMissingAtoms()
-    simulation.fixer.addMissingHydrogens(7.0)
-    app.PDBFile.writeFile(simulation.fixer.topology, simulation.fixer.positions,
-        open(f"{simulation.input_dir}/protein.pdb", "w"))
+def fix_protein_ccdc(simulation):
+    import sys
+    # this is required to reset paths due to bug in CSD-Python-API
+    resetopenflags = sys.getdlopenflags()
+    from ccdc.protein import Protein
+    sys.setdlopenflags(resetopenflags)
+    simulation.protein = Protein.from_file("docking_input/protein.pdb")
     return None
 
 
