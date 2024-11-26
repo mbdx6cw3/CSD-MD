@@ -38,8 +38,9 @@ def main():
             print(f"Using {simulation.n_conf} conformer(s)...")
         elif simulation.protein and not simulation.ligand:
             print("Retrieving PDB...")
-            get_structure.protein(simulation.PDB, simulation)
-            simulation.n_conf = 1
+            get_structure.get_protein(simulation.PDB, simulation)
+            print("Fixing PDB...")
+            get_structure.fix_protein(simulation)
         else:
             get_structure.docking(simulation)
 

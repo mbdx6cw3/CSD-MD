@@ -9,7 +9,7 @@ def ligand(identifier, simulation):
     resetopenflags = sys.getdlopenflags()
     from ccdc.conformer import ConformerGenerator
     from ccdc.io import EntryReader, MoleculeWriter
-    # this is required to reset paths after loading ccdc modules
+    # this is required to reset paths due to bug in CSD-Python-API
     sys.setdlopenflags(resetopenflags)
 
     csd_reader = EntryReader("CSD")
@@ -60,9 +60,10 @@ def ligand(identifier, simulation):
     return None
 
 
-def protein(identifier, simulation):
+def get_protein(identifier, simulation):
     import sys
     if simulation.PDB == "from_file":
+        # this is required to reset paths due to bug in CSD-Python-API
         resetopenflags = sys.getdlopenflags()
         from ccdc.protein import Protein
         sys.setdlopenflags(resetopenflags)
@@ -70,21 +71,23 @@ def protein(identifier, simulation):
     else:
         from openmm import app
         from pdbfixer import PDBFixer
-        fixer = PDBFixer(pdbid=identifier)
-        # will also need unfixed structure for docking if protein-ligand simulation
-        if simulation.ligand:
-            app.PDBFile.writeFile(fixer.topology, fixer.positions,
-                open(f"{simulation.input_dir}/protein-unfixed.pdb", "w"))
-        print("Fixing PDB file...")
-        fixer.findMissingResidues()
-        fixer.findNonstandardResidues()
-        fixer.replaceNonstandardResidues()
-        fixer.removeHeterogens(False)
-        fixer.findMissingAtoms()
-        fixer.addMissingAtoms()
-        fixer.addMissingHydrogens(7.0)
-        app.PDBFile.writeFile(fixer.topology, fixer.positions,
-            open(f"{simulation.input_dir}/protein.pdb", "w"))
+        simulation.fixer = PDBFixer(pdbid=identifier)
+        app.PDBFile.writeFile(simulation.fixer.topology, simulation.fixer.positions,
+            open(f"{simulation.input_dir}/protein-unfixed.pdb", "w"))
+    return None
+
+
+def fix_protein(simulation):
+    from openmm import app
+    simulation.fixer.findMissingResidues()
+    simulation.fixer.findNonstandardResidues()
+    simulation.fixer.replaceNonstandardResidues()
+    simulation.fixer.removeHeterogens(False)
+    simulation.fixer.findMissingAtoms()
+    simulation.fixer.addMissingAtoms()
+    simulation.fixer.addMissingHydrogens(7.0)
+    app.PDBFile.writeFile(simulation.fixer.topology, simulation.fixer.positions,
+        open(f"{simulation.input_dir}/protein.pdb", "w"))
     return None
 
 
