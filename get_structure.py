@@ -70,6 +70,7 @@ def get_protein(simulation):
     urllib.request.urlretrieve(URL, file_path)
     return None
 
+
 def fix_protein_pdbfixer(simulation):
     from openmm import app
     from pdbfixer import PDBFixer
@@ -83,17 +84,26 @@ def fix_protein_pdbfixer(simulation):
     fixer.addMissingAtoms()
     fixer.addMissingHydrogens(7.0)
     app.PDBFile.writeFile(fixer.topology, fixer.positions,
-        open(f"{simulation.input_dir}/protein.pdb", "w"))
+        open(f"{simulation.input_dir}protein.pdb", "w"))
     return None
 
 
-def fix_protein_ccdc(simulation):
+def fix_protein_ccdcfixer(simulation):
     import sys
     # this is required to reset paths due to bug in CSD-Python-API
     resetopenflags = sys.getdlopenflags()
     from ccdc.protein import Protein
+    from ccdc.io import MoleculeWriter
     sys.setdlopenflags(resetopenflags)
-    simulation.protein = Protein.from_file("docking_input/protein.pdb")
+    simulation.protein = Protein.from_file(f"{simulation.input_dir}protein-unsanitised.pdb")
+    simulation.protein.remove_all_metals()
+    simulation.protein.remove_all_waters()
+    for ligand in simulation.protein.ligands:
+        simulation.protein.remove_ligand(ligand.identifier)
+    simulation.protein.add_hydrogens(mode="all", rules_file=None)
+    simulation.protein.sort_atoms_by_residue()
+    with MoleculeWriter(f"{simulation.input_dir}protein.pdb") as w:
+        w.write(simulation.protein)
     return None
 
 

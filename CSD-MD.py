@@ -39,7 +39,7 @@ def main():
             print("Retrieving PDB...")
             get_structure.get_protein(simulation)
             print("Fixing PDB...")
-            get_structure.fix_protein_pdbfixer(simulation)
+            get_structure.fix_protein_ccdcfixer(simulation)
         else:
             get_structure.docking(simulation)
 
