@@ -21,7 +21,6 @@ def main():
 
     print("Reading input parameters...")
     simulation = MolecularDynamics()
-    # TODO: move read_inputs to init method?
     simulation.read_inputs()
 
     if simulation.CSD != "from_gro":
@@ -31,17 +30,20 @@ def main():
             shutil.rmtree(simulation.input_dir)
         os.makedirs(simulation.input_dir)
 
-        if simulation.ligand and not simulation.protein:
+        if simulation.protein:
+            print("Retrieving PDB...")
+            get_structure.protein(simulation)
+            print("Fixing PDB...")
+            get_structure.fix_protein_pdbfixer(simulation)
+
+        if simulation.ligand:
             print(f"Retrieving CSD entry for {simulation.CSD}...")
             get_structure.ligand(simulation.CSD, simulation)
             print(f"SMILES notation: {simulation.smiles} ")
-        elif simulation.protein and not simulation.ligand:
-            print("Retrieving PDB...")
-            get_structure.get_protein(simulation)
-            print("Fixing PDB...")
-            get_structure.fix_protein_ccdcfixer(simulation)
-        else:
-            get_structure.docking(simulation)
+
+            if simulation.protein:
+                print(f"Docking ligand...")
+                get_structure.docking(simulation)
 
     print("Setting up MD simulation...")
     simulation.setup()

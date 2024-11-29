@@ -87,7 +87,7 @@ class MolecularDynamics():
                 self.pairnet_path = "none"
             if self.partial_charges != "none":
                 print("WARNING - must use standard partial charges for standard residues.")
-                print("Resetting charge scheme.")
+                print("Resetting charge scheme...")
                 self.partial_charges = "none"
 
         self.output_dir = "md_data/"
@@ -112,28 +112,26 @@ class MolecularDynamics():
 
         if self.CSD != "from_gro":
 
-            # ligand only simulation - ccdc.molecule from conformer generation
-            if self.ligand and not self.protein:
-                self.topology, self.positions = ccdc_convertor.openmm_topology_and_positions_from_ccdc_molecule(self.conformers[0])
-
-            # protein only simulation - from ccdc.protein
+            # protein only simulation, positions from downloaded PDB file
             if self.protein and not self.ligand:
-                pdb = get_pdb(f"md_input/protein.pdb")
-                self.topology = pdb.topology
-                self.positions = pdb.positions
+                self.topology, self.positions = get_pdb(f"{self.input_dir}protein.pdb")
+                # TODO: can't yet use CCDC->OpenMM converter for proteins due to incorrect charge state of CCDC protein
                 #self.topology, self.positions = ccdc_convertor.openmm_topology_and_positions_from_ccdc_molecule(self.protein)
 
-            # ligand-protein - ligand from first docked pose, protein from ccdc.protein
+            # ligand only simulation, positions from first conformer
+            if self.ligand and not self.protein:
+                self.topology, self.positions = ccdc_convertor.\
+                    openmm_topology_and_positions_from_ccdc_molecule(self.conformers[0])
+                if not self.solvate:
+                    self.topology.setUnitCellDimensions([3.0]*3)
+
+            # ligand-protein simulation, ligand positions from first docked pose
             if self.ligand and self.protein:
-                pdb = get_pdb(f"docking_input/ligand.pdb")
-                ligand_topology = pdb.topology
-                ligand_positions = pdb.positions
-                pdb = get_pdb(f"docking_input/protein.pdb")
-                protein_topology = pdb.topology
-                protein_positions = pdb.positions
-                #protein_topology, protein_positions = ccdc_convertor.openmm_topology_and_positions_from_ccdc_molecule(self.protein)
-                self.topology, self.positions = merge_topology(ligand_topology, ligand_positions, protein_topology, protein_positions)
-                self.smiles = "CC(C)Cc1ccc(cc1)C(C)C(=O)[O-]"
+                protein_topology, protein_positions = get_pdb(f"{self.input_dir}protein.pdb")
+                ligand_topology, ligand_positions = ccdc_convertor. \
+                    openmm_topology_and_positions_from_ccdc_molecule(self.conformers[0])
+                self.topology, self.positions = merge_topology(ligand_topology,
+                    ligand_positions, protein_topology, protein_positions)
 
              # define force field
             std_ff = ["amber/ff14SB.xml", "amber/tip3p_standard.xml"]
@@ -148,13 +146,11 @@ class MolecularDynamics():
                     print("Reading partial charges from file...")
                     ligand.partial_charges = np.loadtxt("charges.txt") * unit.elementary_charges
                 molecules = ligand
-                if not self.solvate:
-                    self.topology.setUnitCellDimensions([3.0]*3)
             else:
                 molecules = None
 
             # add water to system using PDBfixer
-            # TODO: can't yet use CCDC->OpenMM conversion function for ionised system
+            # TODO: can't yet use CCDC->OpenMM converter for ionised system
             # TODO: can't yet add counterions to neutralise system either
             if self.solvate:
                 input_file = f"{self.input_dir}ligand.pdb"
@@ -371,7 +367,7 @@ def get_pairnet_prediction(model, atoms, coords):
 def get_pdb(filename):
     from openmm import app
     pdb = app.PDBFile(filename)
-    return pdb
+    return pdb.topology, pdb.positions
 
 
 def solvate_system(filename):
@@ -577,7 +573,9 @@ def set_charges(predicted_charges, system, simulation, n_atom, net_charge):
 
 def merge_topology(topology_1, positions_1, topology_2, positions_2):
     from openmm import app
+    cell_dims = topology_2.getUnitCellDimensions()
     modeller = app.Modeller(topology_1, positions_1)
     modeller.add(topology_2, positions_2)
+    modeller.topology.setUnitCellDimensions(cell_dims)
     return modeller.topology, modeller.positions
 

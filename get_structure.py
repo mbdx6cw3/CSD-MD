@@ -26,6 +26,8 @@ def ligand(identifier, simulation):
     conformers = conformer_generator.generate(ligand)
     simulation.n_conf = len(conformers)
     simulation.conformers = [c.molecule for c in conformers]
+    with MoleculeWriter(f"{simulation.input_dir}ligand.pdb") as mol_writer:
+        mol_writer.write(simulation.conformers[0])
 
     # TODO: solvated systems required ionised ligands
     # TODO: for now need to print pdb, ionise using OB and then write and fix pdb
@@ -60,7 +62,7 @@ def ligand(identifier, simulation):
     return None
 
 
-def get_protein(simulation):
+def protein(simulation):
     import sys
     import urllib.request
     resetopenflags = sys.getdlopenflags()
@@ -100,7 +102,7 @@ def fix_protein_ccdcfixer(simulation):
     simulation.protein.remove_all_waters()
     for ligand in simulation.protein.ligands:
         simulation.protein.remove_ligand(ligand.identifier)
-    simulation.protein.add_hydrogens(mode="all", rules_file=None)
+    simulation.protein.add_hydrogens(mode="all", rules_file="protonation_rules.txt")
     simulation.protein.sort_atoms_by_residue()
     with MoleculeWriter(f"{simulation.input_dir}protein.pdb") as w:
         w.write(simulation.protein)
@@ -112,35 +114,44 @@ def docking(simulation):
     from pathlib import Path
     resetopenflags = sys.getdlopenflags()
     from ccdc.docking import Docker
-    from ccdc.io import MoleculeReader, EntryWriter
+    from ccdc.protein import Protein
+    from ccdc.io import EntryWriter
     sys.setdlopenflags(resetopenflags)
 
     docker = Docker()
     settings = docker.settings
 
-    input_dir = Path("docking_input").absolute()
+    input_dir = Path("md_input").absolute()
 
-    # get the protein structure and load into docker settings
-    protein_file = input_dir / "protein.pdb"
+    # get the sanitised protein structure and load into docker settings
+    protein_file = f"{input_dir}/protein.pdb"
     settings.add_protein_file(str(protein_file))
 
-    # load the native ligand and use it to define the binding site
-    native_ligand_file = input_dir / "native_ligand.pdb"
-    native_ligand = MoleculeReader(str(native_ligand_file))[0]
+    # get native ligand from unsanitised protein
+    protein_file = f"{input_dir}/protein-unsanitised.pdb"
+    complex = Protein.from_file(protein_file)
+    # TODO: replace hard-coding of native ligand
+    native_ligand = complex.ligands[2]
+    '''
+    for ligand in complex.ligands:
+        print(ligand.identifier)
+    '''
+
     protein = settings.proteins[0]
 
-    # this defines a binding site as within a radius of 6A from the ligand
+    # use native ligand to define binding site
     settings.binding_site = settings.BindingSiteFromLigand(protein, native_ligand)
 
     # define docking parameters including fitness function
     settings.fitness_function = "plp"
     settings.autoscale = 10.
     settings.early_termination = False
+    settings.save_lone_pairs = False
 
     settings.output_file = "docked_ligands.mol2"
 
     # select ligands to dock and number of docking runs per ligand
-    ligand_file = input_dir / "ligand.pdb"
+    ligand_file = f"{input_dir}/ligand.pdb"
     settings.add_ligand_file(str(ligand_file), 10)
 
     # create output directory
@@ -152,30 +163,26 @@ def docking(simulation):
 
     # launch the docker
     results = docker.dock()
-    print(results.return_code)
+    if results.return_code == 0:
+        "Docking completed..."
     batch_conf_file = settings.conf_file
 
     settings = Docker.Settings.from_file(batch_conf_file)
     results = Docker.Results(settings)
 
-    ligands = results.ligands
-    first_dock = ligands[0]
-    "Gold.PLP.Fitness" in first_dock.attributes
-
-    print(first_dock.fitness())
-    print(first_dock.fitness(settings.fitness_function))
-    print(first_dock.scoring_term())
-    print(first_dock.scoring_term("plp", "chemscore", "hbond"))
-    print(first_dock.hbonds())
-    complexed = results.make_complex(ligands[0])
+    # TODO: three letter code is "***", change to something descriptive?
+    with EntryWriter("ligand.pdb") as writer:
+        writer.write(results.ligands[0])
+    "Gold.PLP.Fitness" in results.ligands[0].attributes
+    complexed = results.make_complex(results.ligands[0])
     complexed.remove_unknown_atoms()
-    print(len(protein.ligands))
+    print(f"Number of ligands docked: {len(complexed.ligands)}")
 
-    with EntryWriter("complexed.pdb") as writer:
+    simulation.conformers = [c.molecule for c in results.ligands]
+
+    with EntryWriter(f"{input_dir}/ligand-protein.pdb") as writer:
         writer.write(complexed)
 
-    # TODO: CCDC complex - to be converted to OpenMM object
-    simulation.complexed = complexed
     os.chdir("..")
 
     return None
