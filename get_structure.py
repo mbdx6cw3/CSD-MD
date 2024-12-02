@@ -63,10 +63,7 @@ def ligand(identifier, simulation):
 
 
 def protein(simulation):
-    import sys
     import urllib.request
-    resetopenflags = sys.getdlopenflags()
-    sys.setdlopenflags(resetopenflags)
     URL = f"https://files.rcsb.org/download/{simulation.PDB}.pdb"
     file_path = f"{simulation.input_dir}protein-unsanitised.pdb"
     urllib.request.urlretrieve(URL, file_path)
