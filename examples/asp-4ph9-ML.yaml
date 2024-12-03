@@ -1,10 +1,10 @@
-name: Aspiring Bound to COX-2 with MM Potential
+name: Aspirin Bound to COX-2 with MM Potential
 system type: ligand-protein
 CSD identifier: ACSALA
 PDB identifier: 4PH9
 analyse torsions: no
 simulation type: standard
-pair-net model path: ./
+pair-net model path: models/aspirin/ionised/Meta-300K/
 partial charges: am1-bcc
 solvate system: no
 ensemble: NVT
