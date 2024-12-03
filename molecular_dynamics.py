@@ -154,7 +154,7 @@ class MolecularDynamics():
             # TODO: can't yet add counterions to neutralise system either
             if self.solvate:
                 input_file = f"{self.input_dir}ligand.pdb"
-                solvated_pdb = solvate_system(input_file)
+                solvated_pdb = solvate_system_pdbfixer(input_file)
                 n_solvent = len(solvated_pdb.positions) - len(self.positions)
                 self.topology = solvated_pdb.topology
                 self.positions = solvated_pdb.positions
@@ -226,6 +226,7 @@ class MolecularDynamics():
         self.simulation.reporters.append(app.PDBReporter("output.pdb", 1000,
                                     enforcePeriodicBox=True))
 
+
         # TODO: CSDDataReporter?
         return None
 
@@ -268,7 +269,8 @@ class MolecularDynamics():
             # open files for storing PairNetOps compatible datasets
             data_files = [f1, f2, f3, f4]
 
-        #TODO: print first structure
+        # TODO: print first structure
+        # TODO: add ligand strain energy only option (i.e. not do a MD simulation)
         print("Performing MD simulation...")
         print("Time (ps) | PE (kcal/mol)")
         for i in range(n_steps):
@@ -370,13 +372,22 @@ def get_pdb(filename):
     return pdb.topology, pdb.positions
 
 
-def solvate_system(filename):
+def solvate_system_pdbfixer(filename):
     from pdbfixer import PDBFixer
     from openmm import Vec3
     fixer = PDBFixer(filename=filename)
     boxSize = 3.0 * Vec3(1, 1, 1)
     fixer.addSolvent(boxSize=boxSize)
     return fixer
+
+def solvate_system_modeller(filename, std_ff):
+    from openmm import app, Vec3
+    pdb = app.PDBFile(filename)
+    modeller = app.Modeller(pdb.topology, pdb.positions)
+    boxSize = 3.0 * Vec3(1, 1, 1)
+    forcefield = app.ForceField(std_ff[0], std_ff[1])
+    modeller.addSolvent(forcefield, boxSize=boxSize)
+    return modeller
 
 
 def create_MLP(system, n_atom):
