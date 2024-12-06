@@ -1,13 +1,12 @@
 import unittest
 
 # Add the location of the script being tested to the path
-import sys
-from os.path import dirname, abspath
-sys.path.append(dirname(dirname(abspath(__file__))) )
+import os.path
 
 import ccdc_convertor
 
 from ccdc.io import EntryReader
+from ccdc.protein import Protein as CCDCProtein
 from openmm.app.element import Element as OpenMMElement
 
 
@@ -40,3 +39,21 @@ class TestCCDCConvertor(unittest.TestCase):
 
         self.assertEqual((atoms[0], atoms[1]), bonds[0])    # C1-C2
         self.assertEqual((atoms[17], atoms[6]), bonds[16])  # O1-C7
+
+    def test_openmm_from_ccdc_protein(self):
+        ccdc_protein = CCDCProtein.from_file(
+            os.path.join(os.path.dirname(__file__), 'input_files', 'protein.pdb'))
+
+        openmm_topology, openmm_positions = ccdc_convertor.openmm_topology_and_positions_from_ccdc_molecule(ccdc_protein)
+
+        self.assertEqual(17694, openmm_topology.getNumAtoms())
+        self.assertEqual(1102, openmm_topology.getNumResidues())
+
+        atoms = [atom for atom in openmm_topology.atoms()]
+        residues = [residue for residue in openmm_topology.residues()]
+
+        # Pick a few atoms and test residue membership
+        self.assertTrue(atoms[998] in residues[64].atoms())    # CB in A:LYS65
+        self.assertTrue(atoms[5000] in residues[310].atoms())  # CE in A:LYS311
+        self.assertTrue(atoms[10000] in residues[624].atoms()) # HG23 in B:ILE74
+        self.assertTrue(atoms[14999] in residues[928].atoms()) # OH in B:378
