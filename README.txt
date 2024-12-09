@@ -1,5 +1,5 @@
 CSD-MD is a Python package that enables the user to setup and run a molecular
-dynamics simulation from an entry in the Cambridge Structural Database.
+dynamics simulation using CSD entries and tools.
 
 Installation:
 module load apps/binapps/anaconda3/2023.09
@@ -7,7 +7,7 @@ conda install -n base conda-libmamba-solver
 conda config --set solver libmamba
 conda create -n csd-md python=3.9
 conda activate csd-md
-conda install openmm openmmforcefields pyyaml pdbfixer openmm-plumed
+conda install openmm openmmforcefields pyyaml pdbfixer openmm-plumed openbabel
 
 ...then on CSF (Red Hat linux)
 conda install -c /opt/apps/apps/binapps/ccdc-csds/2024.1/ccdc_conda_channel_py39 Pillow six lxml numpy matplotlib
@@ -17,66 +17,84 @@ export CCDC_LICENSING_CONFIGURATION='lf-server;http://login1:8090'
 ...or on local machine (OS(X)):
 python -m pip install --extra-index-url https://pip.ccdc.cam.ac.uk/ csd-python-api
 
-Notes:
- Problems finding the CSD Database so had to follow instructions here to set
- up mamba and save environment variables in ./etc/conda/activate.d/env_vars.sh:
- https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#set-env-vars
-
 Running MD simulations:
 A single .yaml input file is required. This contains all information
-required to retrieve a structure from CSD and run an MD simulation.
+required to retrieve structures, construct topologies and run MD simulations.
 
 Example usage:
     "python CSD-MD.py --md_params input.yaml > md.log"
 
-Example .yaml input file (input.yaml by default):
-    name: demonstration
-    system type: ligand
-    CSD identifier: ACSALA
-    PDB identifier: 3I40
-    analyse torsions: False
-    simulation type: standard
-    pair-net model path: none
-    charges: am1-bcc
-    solvate system: no
-    ensemble: NVT
-    temperature (K): 300.0
-    simulation time (ns): 0.001
-    timestep (fs): 1.0
-
 Input options:
     name:                   name of the simulation
-
     system type:            "ligand", "protein" or "protein-ligand"
-
-    CSD identifier:         identifier associated with CSD ligand entry
-
-    PDB identifier:         four letter identifier associated with PDB entry
-
-    pair-net model path:    name of trained pair-net model to search for in
-                            "pair-net_models" directory. If set to "none"
-                             will default to MM simulation using the Amber14 potential.
-                             Water is always TIP3P.
-
-    solvate system:         "yes" will fill box with explicit water molecules,
-                            modelled by default using TIP3P
-
-    simulation type:        "standard" or "multi-conformer" for now
-
-    simulation time (ns):   total simulation time (per conformer) in nanoseconds
-
+    CSD identifier:         identifier associated with the ligand
+    PDB identifier:         four letter identifier associated with protein,
+    pair-net model path:    path to trained PairNet model or "none"
+    solvate system:         "yes" or "no"
+    simulation type:        "standard" or "enhanced"
+    simulation time (ns):   total simulation time in nanoseconds
     timestep (fs):          integration timestep in femtoseconds
-
     temperature (K):        temperature in Kelvin
-
     ensemble:               "NVT"
 
-Notes:
-For a simulation involving a ligand OpenFF is used to generate a non-standard
-residue template with AM1-BCC charges assigned.
+--------------------------------------------------------------------------------
+System types:
 
-Only neutral molecules?
+"Ligand" will retrieve a ligand from a CSD entry and generate the initial
+structure using CCDC conformer generator.
 
+"Protein" will retrieve a protein from RCSB Protein Data Bank and
+generate the initial (sanitised) structure using PDBFixer.
+
+"Ligand-protein" will retrieve a ligand from a CSD entry and a protein from
+RCSB Protein Data Bank, and then generate the initial structure by docking the
+ligand to the protein, defining the binding site using a native ligand in the
+unsanitised protein structure.
+
+--------------------------------------------------------------------------------
+Solvate system:
+"yes" (ligand only) adds water to the system and ionises functional groups
+appropriate for pH 7.4.
+"no" will perform a gas phase simulation
+Note that since PairNet has a fixed number of input descriptors, the number of
+atoms in the ligand must match the number of atoms in the PairNet model.
+
+--------------------------------------------------------------------------------
+Simulation types:
+"standard" will perform an MD simulation
+"enhanced" will perform a metadynamics simulation with sampling enhanced
+with respect to the rotatable bonds identified using the CCDC conformer
+generator
+
+--------------------------------------------------------------------------------
+PairNet Model Library (in "models" directory):
+models/aspirin/neutral/MD-300K/
+models/aspirin/neutral/Meta-300K/
+models/aspirin/ionised/MD-300K/
+models/aspirin/ionised/Meta-300K/
+models/ibuprofen/neutral/MD-300K/
+models/ibuprofen/neutral/Meta-300K/
+models/ibuprofen/ionised/MD-300K/
+models/ibuprofen/ionised/Meta-300K/
+
+Note that "none" will use an MM potential (GAFF2) instead of PairNet. Water is
+modelled using TIP3P.
+
+--------------------------------------------------------------------------------
+Example Library (in "examples" directory):
+asp-gas-MM.yaml:                MD simulation of aspirin using an MM potential
+asp-solution-MM.yaml:           MD simulation of aspirin in water using an MM potential
+asp-gas-MM-enhanced.yaml:       Metaydnamics simulation of aspirin using an MM potential
+asp-gas-ML.yaml:                MD simulation of aspirin using a PairNet potential
+asp-solution-ML.yaml:           MD simulation of aspirin in water using a PairNet potential
+ibu-gas-ML.yaml:                MD simulation of ibuprofen using a PairNet potential
+ibu-solution-MM-enhanced.yaml:  Metadynamics simulation of ibuprofen in water using an MM potential
+4ph9-protein-MM.yaml:           MD simulation of cyclooxygenase-2 using an MM potential
+asp-4ph9-MM.yaml:               MD simulation of cyclooxygenase-2 bound aspirin using an MM potential
+asp-4ph9-ML.yaml:               MD simulation of cyclooxygenase-2 bound aspirin using a PairNet potential
+ibu-4ph9-MM.yaml:               MD simulation of cyclooxygenase-2 bound ibuprofen using a PairNet potential
+
+ -------------------------------------------------------------------------------
 References:
 [1] CR Groom, IJ Bruno, MP Lightfoot and SC Ward, The Cambridge Structural
     Database, 2016, Acta Cryst. B72: 171-179.
@@ -101,4 +119,3 @@ References:
 [6] RA Sykes, NT Johnson, CJ Kingsbury et al, What Has Scripting Ever Done For Us?
     The CSD Python Application Programming Interface (API), J. Appl. Cryst., 2024,
     57, 1235-1250.
-
