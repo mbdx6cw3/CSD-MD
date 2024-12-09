@@ -237,7 +237,7 @@ class MolecularDynamics():
         :param:
         :return:
         """
-        from openmm import unit
+        from openmm import unit, app
         import numpy as np
         import time as timer
         start_time = timer.time()
@@ -273,6 +273,7 @@ class MolecularDynamics():
         # TODO: add ligand strain energy only option (i.e. not do a MD simulation)
         print("Performing MD simulation...")
         print("Time (ps) | PE (kcal/mol)")
+        stable = True
         for i in range(n_steps):
 
             if self.pairnet_path != "none":
@@ -285,7 +286,11 @@ class MolecularDynamics():
                     getPositions(asNumpy=True).value_in_unit(unit.angstrom)[:self.ligand_n_atom]
 
                 prediction = get_pairnet_prediction(model, atoms, coords)
+                stable = check_stability(i, prediction[0])
+                if not stable:
+                    break
                 ML_forces = prediction[0] * unit.kilocalories_per_mole / unit.angstrom
+
                 ML_forces = np.reshape(ML_forces, (-1, 3))
 
                 if self.partial_charges == "predicted":
@@ -326,7 +331,14 @@ class MolecularDynamics():
 
         end_time = timer.time()
         run_time = end_time - start_time
-        print(f"MD simulation has completed in {timer.strftime('%H:%M:%S', timer.gmtime(run_time))}.")
+
+        if not stable:
+            positions = self.simulation.context.getState(getPositions=True).getPositions()
+            app.PDBFile.writeFile(self.simulation.topology, positions, open("final.pdb", "w"))
+            print(f"MD simulation ended prematurely in {timer.strftime('%H:%M:%S', timer.gmtime(run_time))}.")
+        else:
+            print(f"MD simulation has completed in {timer.strftime('%H:%M:%S', timer.gmtime(run_time))}.")
+
 
         if self.ligand:
             f1.close()
@@ -590,3 +602,15 @@ def merge_topology(topology_1, positions_1, topology_2, positions_2):
     modeller.topology.setUnitCellDimensions(cell_dims)
     return modeller.topology, modeller.positions
 
+
+def check_stability(i, prediction):
+    import numpy as np
+    # exit simulation if any predicted forces are greater than threshold
+    stable = True
+    if np.any(prediction >= 1000.0):
+        stable = False
+        print(f"Error - predicted force exceed stability threshold in step {i}")
+        print("Final forces:")
+        print(prediction)
+        print()
+    return stable
