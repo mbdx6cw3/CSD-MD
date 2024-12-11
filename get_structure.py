@@ -32,9 +32,6 @@ def ligand(identifier, simulation):
     # TODO: solvated systems required ionised ligands
     # TODO: for now need to print pdb, ionise using OB and then write and fix pdb
     if simulation.solvate:
-        for i_conf, c in enumerate(conformers):
-            with MoleculeWriter(f"{simulation.input_dir}ligand.pdb") as mol_writer:
-                mol_writer.write(c.molecule)
         simulation.smiles = ionize_smiles(simulation.smiles)
         ionize_pdb(f"{simulation.input_dir}ligand.pdb")
 
