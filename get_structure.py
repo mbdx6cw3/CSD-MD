@@ -226,7 +226,7 @@ def ionize_smiles(smiles):
 
 
 def ionize_mol(mol, simulation):
-    import openbabel
+    from openbabel import openbabel
     pH = 7.4
     obConversion = openbabel.OBConversion()
     obConversion.SetInAndOutFormats("pdb", "pdb")
@@ -235,7 +235,6 @@ def ionize_mol(mol, simulation):
     mol.AddHydrogens()
     obConversion.WriteFile(mol, f"{simulation.input_dir}ligand.pdb")
     fix_ob_output(f"{simulation.input_dir}ligand.pdb")
-    obConversion.WriteFile()
     return mol
 
 
