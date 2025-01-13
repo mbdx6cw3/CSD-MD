@@ -6,6 +6,7 @@ def ligand(identifier, simulation):
     :return:
     """
     import sys
+    import ccdc_convertor
     resetopenflags = sys.getdlopenflags()
     from ccdc.conformer import ConformerGenerator
     from ccdc.io import EntryReader, MoleculeWriter
@@ -29,11 +30,14 @@ def ligand(identifier, simulation):
     with MoleculeWriter(f"{simulation.input_dir}ligand.pdb") as mol_writer:
         mol_writer.write(simulation.conformers[0])
 
-    # TODO: solvated systems required ionised ligands
-    # TODO: for now need to print pdb, ionise using OB and then write and fix pdb
+    # convert molecule to ob object, ionize, convert back
     if simulation.solvate:
-        simulation.smiles = ionize_smiles(simulation.smiles)
-        ionize_pdb(f"{simulation.input_dir}ligand.pdb")
+        # convert ccdc molecule to ob molecule
+        mol = ccdc_convertor.openbabel_molecule_from_ccdc_molecule(simulation.conformers[0])
+        # ionize molecule with ob
+        ionized_mol = ionize_mol(mol, simulation)
+        # convert ob molecule back to ccdc molecule
+        simulation.conformers[0] = ccdc_convertor.ccdc_molecule_from_openbabel_molecule(ionized_mol)
 
     if simulation.type == "enhanced":
         geometry_analysed_mol = get_torsions(conformers[0].molecule)
@@ -221,18 +225,18 @@ def ionize_smiles(smiles):
     return smiles
 
 
-def ionize_pdb(filename):
-    from openbabel import openbabel
+def ionize_mol(mol, simulation):
+    import openbabel
     pH = 7.4
     obConversion = openbabel.OBConversion()
     obConversion.SetInAndOutFormats("pdb", "pdb")
-    mol = openbabel.OBMol()
-    obConversion.ReadFile(mol, filename)
+    simulation.smiles = ionize_smiles(simulation.smiles)
     mol.CorrectForPH(pH)
     mol.AddHydrogens()
-    obConversion.WriteFile(mol, filename)
-    fix_ob_output(filename)
-    return None
+    obConversion.WriteFile(mol, f"{simulation.input_dir}ligand.pdb")
+    fix_ob_output(f"{simulation.input_dir}ligand.pdb")
+    obConversion.WriteFile()
+    return mol
 
 
 def fix_ob_output(filename):

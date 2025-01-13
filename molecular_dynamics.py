@@ -150,8 +150,7 @@ class MolecularDynamics():
                 molecules = None
 
             # add water to system using PDBfixer
-            # TODO: can't yet use CCDC->OpenMM converter for ionised system
-            # TODO: can't yet add counterions to neutralise system either
+            # TODO: can't yet add counterions to neutralise system
             if self.solvate:
                 input_file = f"{self.input_dir}ligand.pdb"
                 solvated_pdb = solvate_system_pdbfixer(input_file)
@@ -387,15 +386,15 @@ def get_pdb(filename):
 def solvate_system_pdbfixer(filename):
     from pdbfixer import PDBFixer
     from openmm import Vec3
+    #fixed = PDBFixer(pdbfile=)
     fixer = PDBFixer(filename=filename)
     boxSize = 3.0 * Vec3(1, 1, 1)
     fixer.addSolvent(boxSize=boxSize)
     return fixer
 
-def solvate_system_modeller(filename, std_ff):
+def solvate_system_modeller(topology, positions, std_ff):
     from openmm import app, Vec3
-    pdb = app.PDBFile(filename)
-    modeller = app.Modeller(pdb.topology, pdb.positions)
+    modeller = app.Modeller(topology, positions)
     boxSize = 3.0 * Vec3(1, 1, 1)
     forcefield = app.ForceField(std_ff[0], std_ff[1])
     modeller.addSolvent(forcefield, boxSize=boxSize)
