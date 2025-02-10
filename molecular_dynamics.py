@@ -57,7 +57,6 @@ class MolecularDynamics():
             print("Allowed system types: ligand, protein or ligand-protein")
             exit()
 
-        # TODO: tidy up this check
         if system_type== "ligand":
             if self.partial_charges != "am1-bcc" and self.partial_charges != "from_file" \
                     and self.partial_charges != "predicted":
@@ -115,8 +114,8 @@ class MolecularDynamics():
             # protein only simulation, positions from downloaded PDB file
             if self.protein and not self.ligand:
                 self.topology, self.positions = get_pdb(f"{self.input_dir}protein.pdb")
-                # TODO: can't yet use CCDC->OpenMM converter for proteins due to incorrect charge state of CCDC protein
-                #self.topology, self.positions = ccdc_convertor.openmm_topology_and_positions_from_ccdc_molecule(self.protein)
+                # TODO - can't yet use CCDC->OpenMM converter for proteins due to incorrect charge state of CCDC protein:
+                # self.topology, self.positions = ccdc_convertor.openmm_topology_and_positions_from_ccdc_molecule(self.protein)
 
             # ligand only simulation, positions from first conformer
             if self.ligand and not self.protein:
@@ -127,6 +126,8 @@ class MolecularDynamics():
 
             # ligand-protein simulation, ligand positions from first docked pose
             if self.ligand and self.protein:
+                # TODO - can't yet use CCDC->OpenMM converter for proteins due to incorrect charge state of CCDC protein:
+                # self.topology, self.positions = ccdc_convertor.openmm_topology_and_positions_from_ccdc_molecule(self.protein)
                 protein_topology, protein_positions = get_pdb(f"{self.input_dir}protein.pdb")
                 ligand_topology, ligand_positions = ccdc_convertor. \
                     openmm_topology_and_positions_from_ccdc_molecule(self.conformers[0])
@@ -150,7 +151,6 @@ class MolecularDynamics():
                 molecules = None
 
             # add water to system using PDBfixer
-            # TODO: can't yet add counterions to neutralise system
             if self.solvate:
                 input_file = f"{self.input_dir}ligand.pdb"
                 solvated_pdb = solvate_system_pdbfixer(input_file)
@@ -218,15 +218,12 @@ class MolecularDynamics():
             self.simulation.context.setPositions(minimised_coords)
 
         # fix initial velocity seed for now
-        # TODO: this should be changed back to random seed eventually
         if self.ensemble == "NVT":
-            self.simulation.context.setVelocitiesToTemperature(self.temp, 1)
+            self.simulation.context.setVelocitiesToTemperature(self.temp)
 
         self.simulation.reporters.append(app.PDBReporter("output.pdb", 1000,
                                     enforcePeriodicBox=True))
 
-
-        # TODO: CSDDataReporter?
         return None
 
 
@@ -268,8 +265,6 @@ class MolecularDynamics():
             # open files for storing PairNetOps compatible datasets
             data_files = [f1, f2, f3, f4]
 
-        # TODO: print first structure
-        # TODO: add ligand strain energy only option (i.e. not do a MD simulation)
         print("Performing MD simulation...")
         print("Time (ps) | PE (kcal/mol)")
         stable = True
@@ -305,7 +300,7 @@ class MolecularDynamics():
                 self.ml_force.updateParametersInContext(self.simulation.context)
 
             # every 1000 steps save data for PairNetOps compatible dataset
-            if (i % 1000) == 0:
+            if (i % 100) == 0:
 
                 state = self.simulation.context.getState(getEnergy=True)
                 energy = state.getPotentialEnergy() / unit.kilocalories_per_mole
@@ -338,12 +333,12 @@ class MolecularDynamics():
         else:
             print(f"MD simulation has completed in {timer.strftime('%H:%M:%S', timer.gmtime(run_time))}.")
 
-
         if self.ligand:
             f1.close()
             f2.close()
             f3.close()
             f4.close()
+
         return None
 
 
@@ -386,7 +381,6 @@ def get_pdb(filename):
 def solvate_system_pdbfixer(filename):
     from pdbfixer import PDBFixer
     from openmm import Vec3
-    #fixed = PDBFixer(pdbfile=)
     fixer = PDBFixer(filename=filename)
     boxSize = 3.0 * Vec3(1, 1, 1)
     fixer.addSolvent(boxSize=boxSize)
@@ -613,3 +607,4 @@ def check_stability(i, prediction):
         print(prediction)
         print()
     return stable
+

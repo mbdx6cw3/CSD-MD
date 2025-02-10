@@ -3,8 +3,8 @@ __author__ = ['Christopher D Williams']
 __credits__ = ['Kepa Burusco-Goni, Simon Cottrell, Austin Lloyd, '
                'Bojana Popovic, Richard Bryce ']
 __license__ = '...'
-__maintainer__ = 'Christopher D Williams'
-__email__ = 'christopher.williams@manchester.ac.uk'
+__developer__ = 'Christopher D Williams'
+__email__ = 'christopher.williams-2@manchester.ac.uk'
 __status__ = 'Development'
 __funding__ = "Funded by UKRI IAA"
 

@@ -10,7 +10,6 @@ def ligand(identifier, simulation):
     resetopenflags = sys.getdlopenflags()
     from ccdc.conformer import ConformerGenerator
     from ccdc.io import EntryReader, MoleculeWriter
-    # this is required to reset paths due to bug in CSD-Python-API
     sys.setdlopenflags(resetopenflags)
 
     csd_reader = EntryReader("CSD")
@@ -18,10 +17,6 @@ def ligand(identifier, simulation):
     ligand = entry.molecule
     simulation.smiles = ligand.smiles
     conformer_generator = ConformerGenerator()
-    '''
-    if simulation.type != "multi-conformer":
-        conformer_generator.settings.max_conformers = 1
-    '''
 
     print("Generating conformers...")
     conformers = conformer_generator.generate(ligand)
@@ -128,12 +123,9 @@ def docking(simulation):
     # get native ligand from unsanitised protein
     protein_file = f"{input_dir}/protein-unsanitised.pdb"
     complex = Protein.from_file(protein_file)
+
     # TODO: replace hard-coding of native ligand
     native_ligand = complex.ligands[2]
-    '''
-    for ligand in complex.ligands:
-        print(ligand.identifier)
-    '''
 
     protein = settings.proteins[0]
 
@@ -168,7 +160,6 @@ def docking(simulation):
     settings = Docker.Settings.from_file(batch_conf_file)
     results = Docker.Results(settings)
 
-    # TODO: three letter code is "***", change to something descriptive?
     with EntryWriter("ligand.pdb") as writer:
         writer.write(results.ligands[0])
     "Gold.PLP.Fitness" in results.ligands[0].attributes
@@ -262,3 +253,4 @@ def fix_ob_output(filename):
     with open(filename, "w") as outfile:
         outfile.write(text)
     return None
+

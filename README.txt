@@ -1,5 +1,5 @@
 CSD-MD is a Python package that enables the user to setup and run a molecular
-dynamics simulation using CSD entries and tools.
+dynamics simulation using CSD entries and CCDC tools.
 
 Installation:
 module load apps/binapps/anaconda3/2023.09
@@ -38,21 +38,21 @@ Input options:
     ensemble:               "NVT"
 
 --------------------------------------------------------------------------------
-System types:
+system types:
 
-"Ligand" will retrieve a ligand from a CSD entry and generate the initial
+"ligand" will retrieve a ligand from a CSD entry and generate the initial
 structure using CCDC conformer generator.
 
-"Protein" will retrieve a protein from RCSB Protein Data Bank and
+"protein" will retrieve a protein from RCSB Protein Data Bank and
 generate the initial (sanitised) structure using PDBFixer.
 
-"Ligand-protein" will retrieve a ligand from a CSD entry and a protein from
+"ligand-protein" will retrieve a ligand from a CSD entry and a protein from
 RCSB Protein Data Bank, and then generate the initial structure by docking the
 ligand to the protein, defining the binding site using a native ligand in the
 unsanitised protein structure.
 
 --------------------------------------------------------------------------------
-Solvate system:
+solvate system:
 "yes" (ligand only) adds water to the system and ionises functional groups
 appropriate for pH 7.4.
 "no" will perform a gas phase simulation
@@ -60,7 +60,7 @@ Note that since PairNet has a fixed number of input descriptors, the number of
 atoms in the ligand must match the number of atoms in the PairNet model.
 
 --------------------------------------------------------------------------------
-Simulation types:
+simulation types:
 "standard" will perform an MD simulation
 "enhanced" will perform a metadynamics simulation with sampling enhanced
 with respect to the rotatable bonds identified using the CCDC conformer
@@ -77,7 +77,7 @@ models/ibuprofen/neutral/Meta-300K/
 models/ibuprofen/ionised/MD-300K/
 models/ibuprofen/ionised/Meta-300K/
 
-Note that "none" will use an MM potential (GAFF2) instead of PairNet. Water is
+Note that "none" will use an MM potential (GAFF2) instead of PairNet. Water will be
 modelled using TIP3P.
 
 --------------------------------------------------------------------------------
@@ -96,26 +96,27 @@ ibu-4ph9-MM.yaml:               MD simulation of cyclooxygenase-2 bound ibuprofe
 
  -------------------------------------------------------------------------------
 References:
-[1] CR Groom, IJ Bruno, MP Lightfoot and SC Ward, The Cambridge Structural
-    Database, 2016, Acta Cryst. B72: 171-179.
 
-[2] JC Cole, O Korb, P McCabe, MG Read, R Taylor, Knowledge-Based Conformer
-    Generation Using the Cambridge Structural Database, 2018, J. Chem. Inf.
-    Model. 58: 615-629.
+CR Groom, IJ Bruno, MP Lightfoot and SC Ward, The Cambridge Structural
+Database, 2016, Acta Cryst. B72: 171-179.
 
-[3] G Jones, P Willett, RC Glen, AR Leach, R Taylor, Development and
-    Validation of a Genetic Algorithm for Flexible Docking, 1997, J. Mol.
-    Bio. 267: 727-748.
+JC Cole, O Korb, P McCabe, MG Read, R Taylor, Knowledge-Based Conformer
+Generation Using the Cambridge Structural Database, 2018, J. Chem. Inf.
+Model. 58: 615-629.
 
-[4] P Eastman, J Swails, JD Chodera, RT McGibbon, Y Zhao, KA Beauchamp,
-    LP Wang, AC Simmonett, MP Harrigan, CD Stern, RP Wiewiora, BR Brooks,
-    VS Pande, OpenMM 7: Rapid Development of High Performance Algorithms for
-    Molecular Dynamics, 2017, PLOS Comp. Biol. 13(7): e1005659.
+G Jones, P Willett, RC Glen, AR Leach, R Taylor, Development and
+Validation of a Genetic Algorithm for Flexible Docking, 1997, J. Mol.
+Bio. 267: 727-748.
 
-[5] CD Williams, J Kalayan, NA Burton, RA Bryce, Stable and Accurate
-    Atomistic Simulations of Flexible Molecules using Conformationally
-    Generalisable Machine Learned Potentials, 2024, Chem. Sci., 15: 12780-12795.
+P Eastman, J Swails, JD Chodera, RT McGibbon, Y Zhao, KA Beauchamp,
+LP Wang, AC Simmonett, MP Harrigan, CD Stern, RP Wiewiora, BR Brooks,
+VS Pande, OpenMM 7: Rapid Development of High Performance Algorithms for
+Molecular Dynamics, 2017, PLOS Comp. Biol. 13(7): e1005659.
 
-[6] RA Sykes, NT Johnson, CJ Kingsbury et al, What Has Scripting Ever Done For Us?
-    The CSD Python Application Programming Interface (API), J. Appl. Cryst., 2024,
-    57, 1235-1250.
+CD Williams, J Kalayan, NA Burton, RA Bryce, Stable and Accurate
+Atomistic Simulations of Flexible Molecules using Conformationally
+Generalisable Machine Learned Potentials, 2024, Chem. Sci., 15: 12780-12795.
+
+RA Sykes, NT Johnson, CJ Kingsbury et al, What Has Scripting Ever Done For Us?
+The CSD Python Application Programming Interface (API), J. Appl. Cryst., 2024,
+57, 1235-1250.
